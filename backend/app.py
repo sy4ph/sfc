@@ -1094,7 +1094,10 @@ def _all_item_ids():
     return ids
 
 # Helper: compute dependency closure of items and relevant recipes for a target
-def _dependency_closure_recipes(target_item: str):
+def _dependency_closure_recipes(target_item: str, active_map=None):
+    """Compute dependency closure limited to recipes active in active_map (stateless input)."""
+    if active_map is None:
+        active_map = active_recipes
     needed_items = set()
     needed_recipes = set()
     stack = [target_item]
@@ -1108,13 +1111,9 @@ def _dependency_closure_recipes(target_item: str):
         if is_base_resource(itm):
             continue
         for r_id, r in recipes.items():
-            if not active_recipes.get(r_id, False):
+            if not active_map.get(r_id, False):
                 continue
-            produces = False
-            for p in r.get('products', []):
-                if p['item'] == itm:
-                    produces = True
-                    break
+            produces = any(p['item'] == itm for p in r.get('products', []))
             if not produces:
                 continue
             needed_recipes.add(r_id)
@@ -1122,7 +1121,10 @@ def _dependency_closure_recipes(target_item: str):
                 stack.append(ing['item'])
     return needed_items, needed_recipes
 
-def lp_optimize(target_item: str, amount_per_min: float, strategy: str, custom_weights: dict | None = None, time_limit: float = None, rel_gap: float = 0.0):
+def lp_optimize(target_item: str, amount_per_min: float, strategy: str, custom_weights: dict | None = None, time_limit: float = None, rel_gap: float = 0.0, active_map=None):
+    """MILP optimization using provided active recipe map (stateless)."""
+    if active_map is None:
+        active_map = active_recipes
     # Quality-focused version: multi-pass lex for non-custom, weighted single pass for custom.
     if not PULP_AVAILABLE:
         raise RuntimeError('PuLP not installed in environment')
@@ -1134,11 +1136,11 @@ def lp_optimize(target_item: str, amount_per_min: float, strategy: str, custom_w
     weights = _get_strategy_weights(strategy, custom_weights)
 
     # --- Dependency closure prune with safeguard ---
-    needed_items, needed_recipes = _dependency_closure_recipes(target_item)
-    active_recipe_ids = [rid for rid in needed_recipes if active_recipes.get(rid, False)]
+    needed_items, needed_recipes = _dependency_closure_recipes(target_item, active_map)
+    active_recipe_ids = [rid for rid in needed_recipes if active_map.get(rid, False)]
     # Fallback conditions for pruning: too few recipes (suspicious) OR missing producer for a non-base item
     if len(active_recipe_ids) < 3:
-        active_recipe_ids = [rid for rid, r in recipes.items() if active_recipes.get(rid, False)]
+        active_recipe_ids = [rid for rid, r in recipes.items() if active_map.get(rid, False)]
     else:
         # Ensure every non-base item in needed_items has at least one active producer (unless it's the target with only base inputs)
         missing = []
@@ -1163,11 +1165,11 @@ def lp_optimize(target_item: str, amount_per_min: float, strategy: str, custom_w
         if missing:
             if DEBUG_CALC:
                 print(f"[MILP] Prune fallback: missing producers for {len(missing)} items -> using full recipe set. Items in question: {missing}")
-            active_recipe_ids = [rid for rid, r in recipes.items() if active_recipes.get(rid, False)]
+            active_recipe_ids = [rid for rid, r in recipes.items() if active_map.get(rid, False)]
             needed_items = set(i for r in active_recipe_ids for prod in recipes[r].get('products', []) for i in [prod['item']]) | needed_items
 
     if not active_recipe_ids:
-        raise ValueError('No active recipes to use in optimization')
+        raise ValueError('No active recipes to use in optimization (none provided)')
 
     base_items = [iid for iid in _all_item_ids() if is_base_resource(iid) and (iid in needed_items or strategy=='custom')]
 
@@ -1435,6 +1437,11 @@ def calculate_production_lp():
     solver_opts = data.get('solver') or {}
     time_limit = float(solver_opts.get('time_limit', DEFAULT_SOLVER_TIME_LIMIT))
     rel_gap = float(solver_opts.get('rel_gap', DEFAULT_REL_GAP))
+    provided_active = data.get('active_recipes')
+    if provided_active and isinstance(provided_active, dict):
+        active_map = {rid: bool(v) for rid, v in provided_active.items() if rid in recipes}
+    else:
+        active_map = None
 
     if not target or amt <= 0:
         return jsonify({'error': 'Missing parameters'}), 400
@@ -1442,7 +1449,7 @@ def calculate_production_lp():
         return jsonify({'error': 'Invalid item'}), 400
 
     try:
-        graph = lp_optimize(target, amt, strat, weights, time_limit=time_limit, rel_gap=rel_gap)
+        graph = lp_optimize(target, amt, strat, weights, time_limit=time_limit, rel_gap=rel_gap, active_map=active_map)
         if graph is None:
             return jsonify({'error': 'No feasible solution'}), 500
         summary = calculate_summary_stats_v2(graph)

@@ -715,176 +715,19 @@
         }
 
         function toggleRecipe(recipeId, isActive) {
-            // Check if recipe is disabled
             const recipe = recipesWithStatus[recipeId];
-            if (recipe && recipe.is_disabled) {
-                showToast(recipe.disabled_reason || 'This recipe is disabled and cannot be toggled.');
-                return;
-            }
-            
-            fetch('/api/active-recipes', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    recipe_id: recipeId,
-                    active: isActive
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showToast('Error updating recipe: ' + data.error);
-                } else {
-                    // Update local data
-                    recipesWithStatus[recipeId].active = isActive;
-                    loadRecipeList();
-                }
-            })
-            .catch(error => {
-                console.error('Error updating recipe:', error);
-                showToast('Error updating recipe');
-            });
+            if (recipe && recipe.is_disabled) { showToast(recipe.disabled_reason || 'This recipe is disabled and cannot be toggled.'); return; }
+            recipesWithStatus[recipeId].active = isActive;
+            loadRecipeList();
         }
 
-        function toggleAllRecipes(isActive) {
-            const updates = {};
-            Object.keys(recipesWithStatus).forEach(recipeId => {
-                updates[recipeId] = isActive;
-            });
-            
-            fetch('/api/active-recipes/bulk', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    updates: updates
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showToast('Error updating recipes: ' + data.error);
-                } else {
-                    // Update local data
-                    Object.keys(recipesWithStatus).forEach(recipeId => {
-                        recipesWithStatus[recipeId].active = isActive;
-                    });
-                    loadRecipeList();
-                }
-            })
-            .catch(error => {
-                console.error('Error updating recipes:', error);
-                showToast('Error updating recipes');
-            });
-        }
+    function toggleAllRecipes(isActive){ Object.keys(recipesWithStatus).forEach(rid=>{ recipesWithStatus[rid].active=isActive; }); loadRecipeList(); }
 
-        function toggleAlternateRecipes(isActive) {
-            const updates = {};
-            Object.entries(recipesWithStatus).forEach(([recipeId, recipe]) => {
-                if (recipe.alternate) {
-                    updates[recipeId] = isActive;
-                }
-            });
-            
-            fetch('/api/active-recipes/bulk', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    updates: updates
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showToast('Error updating alternate recipes: ' + data.error);
-                } else {
-                    // Update local data
-                    Object.entries(updates).forEach(([recipeId, active]) => {
-                        recipesWithStatus[recipeId].active = active;
-                    });
-                    loadRecipeList();
-                }
-            })
-            .catch(error => {
-                console.error('Error updating alternate recipes:', error);
-                showToast('Error updating alternate recipes');
-            });
-        }
+    function toggleAlternateRecipes(isActive){ Object.entries(recipesWithStatus).forEach(([rid,r])=>{ if(r.alternate) r.active=isActive; }); loadRecipeList(); }
 
-        function toggleMainRecipes(isActive) {
-            const updates = {};
-            Object.entries(recipesWithStatus).forEach(([recipeId, recipe]) => {
-                if (!recipe.alternate && !recipe.special_resource) {
-                    updates[recipeId] = isActive;
-                }
-            });
-            
-            fetch('/api/active-recipes/bulk', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    updates: updates
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showToast('Error updating main recipes: ' + data.error);
-                } else {
-                    // Update local data
-                    Object.entries(updates).forEach(([recipeId, active]) => {
-                        recipesWithStatus[recipeId].active = active;
-                    });
-                    loadRecipeList();
-                }
-            })
-            .catch(error => {
-                console.error('Error updating main recipes:', error);
-                showToast('Error updating main recipes');
-            });
-        }
+    function toggleMainRecipes(isActive){ Object.entries(recipesWithStatus).forEach(([rid,r])=>{ if(!r.alternate && !r.special_resource) r.active=isActive; }); loadRecipeList(); }
 
-        function toggleSpecialResourceRecipes(isActive) {
-            const updates = {};
-            Object.entries(recipesWithStatus).forEach(([recipeId, recipe]) => {
-                if (recipe.special_resource) {
-                    updates[recipeId] = isActive;
-                }
-            });
-            
-            fetch('/api/active-recipes/bulk', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    updates: updates
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showToast('Error updating special resource recipes: ' + data.error);
-                } else {
-                    // Update local data
-                    Object.entries(updates).forEach(([recipeId, active]) => {
-                        recipesWithStatus[recipeId].active = active;
-                    });
-                    loadRecipeList();
-                }
-            })
-            .catch(error => {
-                console.error('Error updating special resource recipes:', error);
-                showToast('Error updating special resource recipes');
-            });
-        }
+    function toggleSpecialResourceRecipes(isActive){ Object.entries(recipesWithStatus).forEach(([rid,r])=>{ if(r.special_resource) r.active=isActive; }); loadRecipeList(); }
 
         // Unified bulk action buttons based on currently active sub-tab
         function bulkToggleCurrent(isEnable){
@@ -1650,7 +1493,12 @@
                     if(item) accentFromItem(item);
                     const amount = parseFloat(document.getElementById('amount').value);
                     if(!item || !amount || amount <= 0){ showToast('Please select an item and enter a valid amount'); return; }
-                    const payload = { item, amount, optimization_strategy: strat };
+                    // Build active_recipes map for stateless backend: include only those marked active
+                    const activeMap = {};
+                    for(const [rid, r] of Object.entries(recipesWithStatus)){
+                        if(r.active){ activeMap[rid] = true; }
+                    }
+                    const payload = { item, amount, optimization_strategy: strat, active_recipes: activeMap };
                     const btn = document.getElementById('calcBtn');
                     const barWrap = document.getElementById('calc-progress-wrapper');
                     barWrap.classList.remove('finishing');
