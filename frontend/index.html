@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satisfactory Production Planner</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://unpkg.com/elkjs@0.8.2/lib/elk.bundled.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Dynamic theme tokens (Material You inspired) */
+            --md-hue: 212; /* base accent hue (will be overridden dynamically) */
+            --md-accent: hsl(var(--md-hue) 90% 55%);
+            --md-accent-container: hsl(var(--md-hue) 85% 20%);
+            --md-accent-container-hi: hsl(var(--md-hue) 95% 35%);
+            --md-surface: #121316;
+            --md-surface-variant: #1c1f24;
+            --md-surface-variant-alt: #24282f;
+            --md-surface-raised: #282e36;
+            --md-outline: #3a434d;
+            --md-outline-variant: #2c353f;
+            --md-text-primary: #ffffff;
+            --md-text-secondary: #bcc4ce;
+            --md-text-tertiary: #88929c;
+            --md-danger: #ff5454;
+            --md-warning: #ffaf38;
+            --md-success: #42c779;
+            --md-radius-sm: 6px;
+            --md-radius: 12px;
+            --md-radius-lg: 18px;
+            --md-shadow-sm: 0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.02) inset;
+            --md-shadow: 0 2px 6px -1px rgba(0,0,0,0.55), 0 4px 16px -4px rgba(0,0,0,0.55);
+            --md-shadow-lg: 0 4px 28px -4px rgba(0,0,0,0.6), 0 6px 40px -8px rgba(0,0,0,0.5);
+            --transition-fast: 120ms cubic-bezier(.4,0,.2,1);
+            --transition-slow: 260ms cubic-bezier(.4,0,.2,1);
+        }
+        .light-theme {
+            --md-surface: #f8f9fb;
+            --md-surface-variant: #eef1f5;
+            --md-surface-variant-alt: #e2e7ed;
+            --md-surface-raised: #ffffff;
+            --md-outline: #d0d7df;
+            --md-outline-variant: #c3cbd3;
+            --md-text-primary: #141e26;
+            --md-text-secondary: #46515b;
+            --md-text-tertiary: #6b7680;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Roboto', system-ui, sans-serif;
+            margin: 0;
+            background: radial-gradient(circle at 20% 20%, var(--md-surface-variant) 0%, var(--md-surface) 60%) fixed;
+            color: var(--md-text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+        h1, h2, h3 { font-weight: 600; letter-spacing: .5px; }
+        .container { display: flex; height: 100vh; backdrop-filter: blur(18px); }
+        .sidebar {
+            width: 340px; display: flex; flex-direction: column; gap: 20px; padding: 22px 22px 18px;
+            background: linear-gradient(145deg, var(--md-surface-variant) 0%, var(--md-surface) 90%);
+            border-right: 1px solid var(--md-outline-variant); box-shadow: var(--md-shadow);
+            position: relative; transition: width var(--transition-slow), padding var(--transition-slow);
+        }
+        .sidebar.collapsed { width: 20px; padding: 0 4px; }
+        .sidebar.collapsed > *:not(.sidebar-toggle-handle) { display: none !important; }
+        .sidebar-toggle-handle { position: absolute; top: 50%; right: -10px; transform: translateY(-50%); width: 22px; height: 70px; background: var(--md-surface-raised); border:1px solid var(--md-outline-variant); border-radius: 12px; cursor: pointer; display:flex; align-items:center; justify-content:center; box-shadow: var(--md-shadow-sm); backdrop-filter: blur(10px); }
+        .sidebar-toggle-handle::before { content: '‹'; font-size: 18px; color: var(--md-text-secondary); transition: transform var(--transition-fast); }
+        .sidebar.collapsed .sidebar-toggle-handle { right: -10px; }
+        .sidebar-toggle-handle[data-dir='right']::before { content: '›'; }
+        .sidebar-toggle-handle:hover::before { color: var(--md-accent); transform: scale(1.15); }
+        .app-header { display: flex; align-items: center; justify-content: space-between; }
+        .brand { font-size: 18px; font-weight: 600; letter-spacing: .8px; background: linear-gradient(90deg,var(--md-accent), var(--md-accent-container-hi)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .theme-toggle { border: none; background: var(--md-surface-variant-alt); color: var(--md-text-secondary); padding: 8px 12px; border-radius: var(--md-radius-sm); cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; letter-spacing: .5px; box-shadow: var(--md-shadow-sm); }
+        .theme-toggle:hover { background: var(--md-accent-container); color: var(--md-text-primary); }
+        .tabs { display: flex; gap: 6px; background: var(--md-surface-variant-alt); padding: 4px; border-radius: var(--md-radius-lg); }
+        .tab { flex: 1; position: relative; border: none; background: transparent; color: var(--md-text-tertiary); padding: 10px 8px; font-weight: 500; cursor: pointer; border-radius: var(--md-radius-md, 14px); transition: var(--transition-fast); font-size: 13px; letter-spacing: .6px; }
+        .tab.active { color: var(--md-text-primary); background: var(--md-accent-container); box-shadow: 0 0 0 1px rgba(255,255,255,.04) inset, 0 1px 4px rgba(0,0,0,.5); }
+        .tab-content { display: none; flex-direction: column; gap: 18px; overflow-y: auto; padding-right: 4px; }
+        .tab-content.active { display: flex; }
+    /* Planner tab: no internal vertical scroll */
+    #planner-tab.tab-content { overflow: visible; padding-right:0; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--md-text-secondary); }
+        input[type=number], input[type=text], select { background: var(--md-surface-variant-alt); border: 1px solid var(--md-outline); color: var(--md-text-primary); border-radius: var(--md-radius); padding: 12px 14px; font-size: 14px; outline: none; transition: var(--transition-fast); box-shadow: var(--md-shadow-sm); }
+        input:focus, select:focus { border-color: var(--md-accent); box-shadow: 0 0 0 1px var(--md-accent); }
+        select { appearance: none; background-image: linear-gradient(45deg,transparent 50%,var(--md-text-tertiary) 50%), linear-gradient(135deg,var(--md-text-tertiary) 50%,transparent 50%); background-position: calc(100% - 18px) calc(50% - 4px), calc(100% - 13px) calc(50% - 4px); background-size: 6px 6px; background-repeat: no-repeat; }
+        .md-button { --btn-bg: var(--md-accent); --btn-bg-hover: var(--md-accent-container-hi); border: none; border-radius: 28px; padding: 14px 18px; font-weight: 600; font-size: 14px; letter-spacing: .8px; cursor: pointer; color: #fff; position: relative; overflow: hidden; background: var(--btn-bg); box-shadow: var(--md-shadow); transition: var(--transition-fast); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+        .md-button:hover { background: var(--btn-bg-hover); }
+        .md-button:active { transform: translateY(1px); }
+        .stats-panel { background: var(--md-surface-raised); border: 1px solid var(--md-outline-variant); border-radius: var(--md-radius-lg); padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 10px; position: relative; box-shadow: var(--md-shadow-sm); }
+        .stats-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--md-text-secondary); }
+        #stats { font-size: 12.5px; line-height: 1.5; color: var(--md-text-secondary); }
+        #stats ul { margin: 0; padding: 0; }
+        #stats li { list-style: none; }
+    .recipe-item { background: var(--md-surface-variant-alt); border: 1px solid var(--md-outline); border-radius: 11px; padding: 8px 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; line-height:1.25; position: relative; overflow: hidden; transition: var(--transition-fast); }
+        .recipe-item.active { border-color: var(--md-accent); box-shadow: 0 0 0 1px var(--md-accent) inset; }
+        .recipe-item.alternate:not(.disabled) { border-color: var(--md-warning); }
+        .recipe-item.special-resource:not(.disabled) { border-color: var(--md-success); }
+        .recipe-item.disabled { opacity: .5; filter: grayscale(.3); }
+    .recipe-toggle { width: 40px; height: 20px; background: var(--md-outline-variant); border-radius: 16px; position: relative; cursor: pointer; transition: var(--transition-fast); box-shadow: inset 0 0 0 1px var(--md-outline); flex-shrink:0; }
+    .recipe-toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: linear-gradient(140deg,#fff,#d9dfea); box-shadow: 0 1px 2px rgba(0,0,0,.5); transition: var(--transition-fast); }
+    .recipe-toggle.active { background: var(--md-accent); }
+    .recipe-toggle.active::after { transform: translateX(20px); }
+    .recipe-item .recipe-icon { width:24px; height:24px; margin-right:4px; object-fit:contain; }
+    .recipe-name { display:flex; align-items:center; gap:4px; flex:1 1 auto; }
+    .recipe-item .recipe-toggle { margin-left:auto; }
+    .recipe-item span { font-size:11px; }
+        .sub-tabs { display: flex; gap: 4px; background: var(--md-surface-variant-alt); padding: 4px; border-radius: var(--md-radius); }
+        .sub-tab { flex:1; border: none; padding: 8px 10px; font-size: 11px; letter-spacing: .8px; border-radius: 10px; background: transparent; color: var(--md-text-tertiary); font-weight: 500; cursor:pointer; transition: var(--transition-fast); }
+        .sub-tab.active { background: var(--md-accent-container); color: var(--md-text-primary); }
+    .search-box input { border-radius: 28px; padding: 10px 16px; }
+    .recipe-controls { display:flex; flex-direction:column; gap:8px; margin-bottom:4px; }
+    .recipe-controls .search-box { width:100%; }
+    .recipe-controls .search-box input { width:100%; display:block; box-sizing:border-box; }
+    .bulk-actions.unified { display:flex; gap:10px; justify-content:center; }
+    .bulk-actions.unified .bulk-btn { min-width:108px; }
+    .bulk-actions.unified .bulk-btn { flex:0 0 auto; padding:10px 14px; }
+        .bulk-actions { display: flex; gap: 8px; }
+        .bulk-btn { background: var(--md-surface-raised); border: 1px solid var(--md-outline); color: var(--md-text-secondary); border-radius: 24px; padding: 8px 10px; font-size: 11px; font-weight: 600; letter-spacing: .5px; cursor: pointer; flex:1; transition: var(--transition-fast); }
+        .bulk-btn:hover { background: var(--md-accent-container); color: var(--md-text-primary); }
+        .main-content { flex: 1; position: relative; background: radial-gradient(circle at 65% 55%, var(--md-surface-variant-alt) 0%, var(--md-surface) 70%); }
+        #production-graph { position: absolute; inset: 0; }
+    /* Calculation progress bar */
+    #calc-progress-wrapper { position:absolute; top:0; left:0; right:0; height:4px; overflow:hidden; z-index:50; display:none; background: var(--md-surface-variant-alt); }
+    #calc-progress-track { position:relative; width:100%; height:100%; overflow:hidden; }
+    #calc-progress-bar { position:absolute; left:-30%; top:0; height:100%; width:30%; background: linear-gradient(90deg, var(--md-accent-container) 0%, var(--md-accent) 50%, var(--md-accent-container) 100%); filter: brightness(1.2); box-shadow:0 0 6px -1px var(--md-accent); animation: calcIndet 1.4s cubic-bezier(.4,0,.2,1) infinite; border-radius:2px; }
+    @keyframes calcIndet { 0% { left:-30%; } 55% { left:60%; } 100% { left:110%; } }
+    /* Fade-out state */
+    #calc-progress-wrapper.finishing { animation: fadeOutBar .35s ease forwards; }
+    @keyframes fadeOutBar { to { opacity:0; } }
+    @media (prefers-reduced-motion: reduce){ #calc-progress-bar { animation: none; left:0; width:100%; } }
+        /* Item selector (reworked to grid to prevent clear button shift) */
+    .item-selector { position:relative; width:100%; display:grid; grid-template-columns: 1fr 32px; grid-auto-rows:auto; align-items:stretch; column-gap:4px; }
+    .item-selector > #item-search { grid-column:1 / 2; width:100%; border-radius:28px; }
+    .item-selector > .item-clear-btn { grid-column:2 / 3; position:static; width:32px; min-width:32px; border:none; background:transparent; color:var(--md-text-tertiary); border-radius:22px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; line-height:1; padding:0; opacity:0; pointer-events:none; transition:opacity .15s ease, background .15s ease, color .15s ease; }
+    .item-selector > .item-clear-btn.visible { opacity:1; pointer-events:auto; }
+    .item-selector > .item-clear-btn:focus { outline:none; box-shadow:0 0 0 2px var(--md-accent); }
+    .item-selector > .item-clear-btn:hover { color: var(--md-text-primary); background: var(--md-surface-variant-alt); }
+    /* Ensure dropdown spans full width under the two columns */
+    .item-selector > #item-dropdown { grid-column:1 / -1; }
+    /* Stabilize input so focus ring doesn't shift layout (keep constant 2px border) */
+    .item-selector > #item-search { box-sizing:border-box; border:2px solid var(--field-border, #3a3f47); background:var(--md-surface,#222); padding-right:10px; /* no fake space reservation needed now */ transition: border-color .15s ease, box-shadow .15s ease; }
+    .item-selector > #item-search:focus { outline:none; border-color: var(--accent-color, #3d82ff); box-shadow:0 0 0 2px rgba(61,130,255,0.35); }
+    /* Compact the row height slightly while preserving click target */
+    .item-selector > #item-search, .item-selector > .item-clear-btn { height:46px; }
+    /* Space below the composite control for dropdown */
+    .item-selector { row-gap:6px; }
+    .item-dropdown { position:absolute; top:calc(100% + 6px); left:0; width:100%; background: var(--md-surface-raised); border: 1px solid var(--md-outline); box-shadow: var(--md-shadow); border-radius: 18px; padding: 4px 4px 6px; z-index:600; overflow:hidden; scrollbar-gutter: stable; }
+    .item-dropdown.above { top:auto; bottom:calc(100% + 6px); }
+    .item-dropdown .dropdown-scroll { max-height:352px; overflow-y:auto; overflow-x:hidden; padding:4px 2px 4px 2px; margin-right:-4px; /* allow custom thumb inside radius */ }
+    .item-dropdown .dropdown-scroll::-webkit-scrollbar { width:10px; }
+    .item-dropdown .dropdown-scroll::-webkit-scrollbar-track { background: transparent; }
+    .item-dropdown .dropdown-scroll::-webkit-scrollbar-thumb { background: var(--md-surface-variant-alt); border-radius: 20px; border: 2px solid var(--md-surface-raised); }
+    .item-dropdown .dropdown-scroll::-webkit-scrollbar-thumb:hover { background: var(--md-accent-container); }
+    .item-option { border: 0; background: transparent; border-radius: 12px; padding: 6px 10px; transition: var(--transition-fast); display:flex; align-items:center; gap:10px; }
+    .item-option .item-info { display:flex; align-items:center; }
+    .item-option .item-name { line-height:1.1; }
+    .item-image { flex-shrink:0; display:block; }
+        .item-option:hover, .item-option.highlighted { background: var(--md-accent-container); }
+        .item-option.selected { background: var(--md-accent); }
+        .item-image { width: 28px; height: 28px; border-radius: 8px; box-shadow: 0 0 0 1px var(--md-outline) inset; }
+    .recipe-tooltip { backdrop-filter: blur(12px); background: linear-gradient(165deg, rgba(20,22,26,.95), rgba(26,30,34,.95)); border: 1px solid var(--md-outline-variant); border-radius: 12px; padding: 10px 12px 8px; box-shadow: var(--md-shadow); line-height:1.25; }
+    .tooltip-title { font-size: 13px; font-weight:600; letter-spacing:.4px; background: linear-gradient(90deg,var(--md-accent),var(--md-accent-container-hi)); -webkit-background-clip:text; background-clip: text; color:transparent; padding-bottom:4px; margin-bottom:4px; border-bottom:1px solid var(--md-outline-variant); }
+    .tooltip-section-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.9px; color: var(--md-text-tertiary); margin-top:4px; }
+    .tooltip-item { font-size: 11px; color: var(--md-text-secondary); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .tooltip-item-content { display:flex; align-items:center; gap:6px; }
+    .tooltip-item-content .item-icon { width:29px; height:29px; }
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--md-surface-variant-alt); border-radius: 40px; border: 2px solid var(--md-surface); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--md-accent-container); }
+        /* Adaptive edge + node styling via vis override */
+        .vis-network canvas { outline: none !important; }
+        /* Compact recipe list styling */
+        #recipe-list .recipe-card{display:flex;flex-direction:column;gap:2px;padding:6px 8px;margin:4px 0;border:1px solid var(--md-outline-variant);border-radius:8px;background:var(--md-surface-container-low);font-size:12px;line-height:1.2;}
+        #recipe-list .recipe-card h4{margin:0;font-size:13px;font-weight:600;}
+        #recipe-list .recipe-meta{display:flex;flex-wrap:wrap;gap:6px;color:var(--md-text-tertiary);font-size:11px;}
+        #recipe-list .ingredient-badge,#recipe-list .product-badge{padding:2px 6px;border-radius:6px;background:var(--md-surface-variant);font-size:10px;}
+    .vis-tooltip{position:absolute;padding:8px 10px;background:rgba(30,30,34,.94);color:#fff;border:1px solid #444;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.35);max-width:320px;font-size:12px;pointer-events:none;z-index:9999;}
+    #recipe-tooltip { display:none; position:fixed; left:0; top:0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-toggle-handle" data-dir="left" onclick="toggleSidebar()" title="Collapse / Expand"></div>
+            <div class="app-header">
+                <div class="brand">Satisfactory Planner</div>
+                <button class="theme-toggle" id="themeToggle" title="Toggle light / dark">🌗</button>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('planner')">Planner</button>
+                <button class="tab" onclick="showTab('recipes')">Recipes</button>
+            </div>
+
+            <!-- Planner Tab -->
+            <div id="planner-tab" class="tab-content active">
+                <div class="form-group">
+                    <label for="item-search">Target Item:</label>
+                    <div class="item-selector">
+                        <input type="text" id="item-search" placeholder="Search items..." autocomplete="off" />
+                        <button type="button" id="clear-item-btn" class="item-clear-btn" title="Clear target">×</button>
+                        <div id="item-dropdown" class="item-dropdown" style="display:none;">
+                            <div class="dropdown-scroll" id="item-dropdown-scroll"><!-- Items will be populated here --></div>
+                        </div>
+                        <input type="hidden" id="selected-item" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="amount">Items per minute:</label>
+                    <input type="number" id="amount" min="0" step="0.1" value="30">
+                </div>
+                <div class="form-group">
+                    <label for="optimization">Optimization Strategy:</label>
+                    <select id="optimization">
+                        <option value="balanced_production">Balanced Production</option>
+                        <option value="resource_efficiency">Resource Efficiency</option>
+                        <option value="compact_build">Compact Build</option>
+                        <option value="resource_consolidation">Resource Consolidation</option>
+                    </select>
+                    <div id="strategy-description" style="margin-top:6px; font-size:12px; line-height:1.3; opacity:0.85;"></div>
+                </div>
+                <button onclick="calculate()" class="md-button" id="calcBtn">Calculate Production Chain</button>
+                
+                <div class="stats-panel">
+                    <div class="stats-title">Production Statistics</div>
+                    <div id="stats" class="stats-content">
+                        Select an item and calculate to see statistics
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipes Tab -->
+            <div id="recipes-tab" class="tab-content">
+                <div class="sub-tabs">
+                    <button class="sub-tab active" onclick="showRecipeSubTab('main')">Main <span class="recipe-count" id="main-count"></span></button>
+                    <button class="sub-tab" onclick="showRecipeSubTab('alternate')">Alternates <span class="recipe-count" id="alternate-count"></span></button>
+                    <button class="sub-tab" onclick="showRecipeSubTab('resource')">Resources <span class="recipe-count" id="resource-count"></span></button>
+                </div>
+
+                <div class="recipe-controls">
+                    <div class="search-box">
+                        <input type="text" id="recipe-search" placeholder="Search recipes..." onkeyup="filterRecipes()">
+                    </div>
+                    <div class="bulk-actions unified">
+                        <button class="bulk-btn" onclick="bulkToggleCurrent(true)" title="Enable all in current tab">Enable All</button>
+                        <button class="bulk-btn" onclick="bulkToggleCurrent(false)" title="Disable all in current tab">Disable All</button>
+                    </div>
+                </div>
+                
+                <!-- Main Recipes Sub-tab -->
+                <div id="main-recipes" class="recipe-sub-tab-content">
+                    <div id="main-recipe-list" style="flex-grow: 1; overflow-y: auto;">
+                        Loading recipes...
+                    </div>
+                </div>
+                
+                <!-- Alternate Recipes Sub-tab -->
+                <div id="alternate-recipes" class="recipe-sub-tab-content" style="display: none;">
+                    <div id="alternate-recipe-list" style="flex-grow: 1; overflow-y: auto;">
+                        Loading recipes...
+                    </div>
+                </div>
+                
+                <!-- Resource Recipes Sub-tab -->
+                <div id="resource-recipes" class="recipe-sub-tab-content" style="display: none;">
+                    <div id="resource-recipe-list" style="flex-grow: 1; overflow-y: auto;">
+                        Loading recipes...
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div id="calc-progress-wrapper"><div id="calc-progress-track"><div id="calc-progress-bar"></div></div></div>
+            <div id="production-graph"></div>
+        </div>
+    </div>
+
+    <!-- Recipe Tooltip -->
+    <div id="recipe-tooltip" class="recipe-tooltip"></div>
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <style>
+    /* Toast notifications */
+    #toast-container { position:fixed; top:16px; right:16px; display:flex; flex-direction:column; gap:8px; z-index:9999; pointer-events:none; }
+    .toast { background:#b3261e; color:#fff; padding:10px 14px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.25); font-size:13px; line-height:1.3; max-width:300px; opacity:0; transform:translateY(-6px); transition:opacity .28s ease, transform .28s ease; pointer-events:auto; }
+    .toast.visible { opacity:1; transform:translateY(0); }
+    .toast-error { background:linear-gradient(135deg,#c62828,#ad1722); }
+    @media (prefers-reduced-motion: reduce){ .toast { transition:none; } }
+    </style>
+
+    <script>
+    // Toast helper
+    function showToast(message){
+        try{
+            let container = document.getElementById('toast-container');
+            if(!container){
+                container = document.createElement('div');
+                container.id='toast-container';
+                document.body.appendChild(container);
+            }
+            const el = document.createElement('div');
+            el.className='toast toast-error';
+            el.textContent= message || 'An error occurred';
+            container.appendChild(el);
+            // force reflow then show
+            requestAnimationFrame(()=>{ el.classList.add('visible'); });
+            const lifetime = 4200; // ms
+            setTimeout(()=>{ el.classList.remove('visible'); setTimeout(()=>{ el.remove(); }, 400); }, lifetime);
+        }catch(e){ console.error('Toast failure', e); }
+    }
+    // Sidebar toggle logic
+    function toggleSidebar(){
+        const sb=document.querySelector('.sidebar');
+        const handle=sb.querySelector('.sidebar-toggle-handle');
+        sb.classList.toggle('collapsed');
+        const collapsed=sb.classList.contains('collapsed');
+        handle.setAttribute('data-dir', collapsed? 'right':'left');
+        try{ localStorage.setItem('sidebarCollapsed', collapsed? '1':'0'); }catch(e){}
+        // Refitting network after layout change (small timeout for transition)
+        if(window.network){ setTimeout(()=>{ try{ network.fit({animation:{duration:400}}); }catch(e){} }, 320); }
+    }
+    document.addEventListener('DOMContentLoaded', ()=>{
+        try{ if(localStorage.getItem('sidebarCollapsed')==='1'){ const sb=document.querySelector('.sidebar'); sb.classList.add('collapsed'); const handle=sb.querySelector('.sidebar-toggle-handle'); handle.setAttribute('data-dir','right'); } }catch(e){}
+    // Strategy description init
+    initStrategyDescriptions();
+    });
+    let network = null;
+    let lastPointer = { x: 0, y: 0 };
+    let nodeHoverTimer = null;
+    let pendingNodeId = null;
+        let items = {};
+        let recipes = {};
+        let recipesWithStatus = {};
+        let currentRecipeSubTab = 'main';
+        const strategyDescriptions = {
+            balanced_production: 'Balanced: Uses standard recipes aiming for solid overall efficiency and typical build sizes.',
+            resource_efficiency: 'Resource Efficiency: Prioritizes minimal raw resource intake, may increase machine count.',
+            compact_build: 'Compact Build: Minimizes number of active recipes to reduce layout complexity.',
+            resource_consolidation: 'Resource Consolidation: Reduces the variety of distinct base resources required.'
+        };
+
+        function initStrategyDescriptions(){
+            const sel = document.getElementById('optimization');
+            const descEl = document.getElementById('strategy-description');
+            if(!sel || !descEl) return;
+            function update(){
+                const v = sel.value;
+                descEl.textContent = strategyDescriptions[v] || '';
+            }
+            sel.addEventListener('change', update);
+            update();
+        }
+
+        // Machine class name to display name mapping
+        const machineNames = {
+            'Desc_AssemblerMk1_C': 'Assembler',
+            'Desc_ConstructorMk1_C': 'Constructor',
+            'Desc_FoundryMk1_C': 'Foundry',
+            'Desc_ManufacturerMk1_C': 'Manufacturer',
+            'Desc_OilRefinery_C': 'Refinery',
+            'Desc_Blender_C': 'Blender',
+            'Desc_SmelterMk1_C': 'Smelter',
+            'Desc_PackagerMk1_C': 'Packager',
+            'Desc_HadronCollider_C': 'Particle Accelerator',
+            'Desc_QuantumEncoder_C': 'Quantum Encoder',
+            'Desc_Converter_C': 'Converter',
+            // Add more mappings as needed
+        };
+
+        // Helper function to get proper machine name
+        function getMachineName(className) {
+            return machineNames[className] || className;
+        }
+
+        // Helper function to get item image URL
+        function getItemImageUrl(itemClassName) {
+            // Convert class name to lowercase and replace underscores with dashes
+            // Example: Desc_AluminumIngot_C -> desc-aluminumingot-c_64.png
+            const imageName = itemClassName.toLowerCase().replace(/_/g, '-');
+            return `images/${imageName}_64.png`;
+        }
+
+        function getItemImageUrl_256(itemClassName) {
+            // Convert class name to lowercase and replace underscores with dashes
+            // Example: Desc_AluminumIngot_C -> desc-aluminumingot-c_256.png
+            const imageName = itemClassName.toLowerCase().replace(/_/g, '-');
+            return `images/${imageName}_256.png`;
+        }
+
+        // Helper function to get recipe icon (using first product's image)
+        function getRecipeIcon(recipe) {
+            if (recipe.products && recipe.products.length > 0) {
+                return getItemImageUrl(recipe.products[0].item);
+            }
+            return null;
+        }
+
+        // Get sink point color class based on points value
+        function getSinkPointColorClass(points) {
+            if (points === 0) return 'points-none';
+            if (points <= 10) return 'points-very-low';
+            if (points <= 50) return 'points-low';
+            if (points <= 500) return 'points-medium';
+            if (points <= 5000) return 'points-high';
+            if (points <= 50000) return 'points-very-high';
+            return 'points-extreme';
+        }
+
+        // Populate the enhanced item selector
+        function populateItemSelector() {
+            const dropdown = document.getElementById('item-dropdown');
+            const scrollWrap = document.getElementById('item-dropdown-scroll');
+            if(scrollWrap) scrollWrap.innerHTML='';
+
+            // Convert items to array and sort alphabetically by name
+            const itemsArray = Object.entries(items).map(([id, item]) => ({
+                id,
+                ...item,
+                sinkPoints: item.sinkPoints || 0
+            })).sort((a, b) => a.name.localeCompare(b.name));
+
+            itemsArray.forEach(item => {
+                const option = document.createElement('div');
+                option.className = `item-option ${getSinkPointColorClass(item.sinkPoints)}`;
+                option.dataset.itemId = item.id;
+
+                option.innerHTML = `
+                    <img class="item-image" src="${getItemImageUrl(item.id)}" alt="${item.name}" 
+                         onerror="this.style.display='none'">
+                    <div class="item-info">
+                        <div class="item-name">${item.name}</div>
+                    </div>
+                `;
+
+                option.addEventListener('click', () => selectItem(item.id, item.name));
+                (scrollWrap || dropdown).appendChild(option);
+            });
+
+            setupItemSelector();
+        }
+
+        // Setup item selector search and interaction
+        function setupItemSelector() {
+            const searchInput = document.getElementById('item-search');
+            const dropdown = document.getElementById('item-dropdown');
+            const scrollWrap = document.getElementById('item-dropdown-scroll');
+            const selectedItemInput = document.getElementById('selected-item');
+            const clearBtn = document.getElementById('clear-item-btn');
+
+            // Show dropdown when focused
+            searchInput.addEventListener('focus', () => {
+                dropdown.style.display = 'block';
+                positionItemDropdown();
+                // Always show all items when opening dropdown
+                filterItems();
+            });
+
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.item-selector')) {
+                    dropdown.style.display = 'none';
+                }
+            });
+
+            // Filter items as user types
+            searchInput.addEventListener('input', function() {
+                const selectedItemInput = document.getElementById('selected-item');
+                
+                // If user manually clears the search, clear the selection
+                if (searchInput.value.trim() === '') {
+                    selectedItemInput.value = '';
+                    dropdown.querySelectorAll('.item-option').forEach(opt => opt.classList.remove('selected'));
+                }
+                if(searchInput.value.trim()){ clearBtn.classList.add('visible'); } else { clearBtn.classList.remove('visible'); }
+                
+                filterItems();
+            });
+
+            // Add keyboard navigation
+            searchInput.addEventListener('keydown', function(e) {
+                const visibleOptions = Array.from(dropdown.querySelectorAll('.item-option')).filter(opt => opt.style.display !== 'none');
+                const currentHighlight = dropdown.querySelector('.item-option.highlighted');
+                let currentIndex = currentHighlight ? visibleOptions.indexOf(currentHighlight) : -1;
+                
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (currentHighlight) currentHighlight.classList.remove('highlighted');
+                    currentIndex = (currentIndex + 1) % visibleOptions.length;
+                    visibleOptions[currentIndex]?.classList.add('highlighted');
+                    if(searchInput.value.trim()){ clearBtn.classList.add('visible'); } else { clearBtn.classList.remove('visible'); }
+                    dropdown.style.display = 'block';
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (currentHighlight) currentHighlight.classList.remove('highlighted');
+                    currentIndex = currentIndex <= 0 ? visibleOptions.length - 1 : currentIndex - 1;
+                    visibleOptions[currentIndex]?.classList.add('highlighted');
+                    if(searchInput.value.trim()){ clearBtn.classList.add('visible'); } else { clearBtn.classList.remove('visible'); }
+                    dropdown.style.display = 'block';
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (currentHighlight) {
+                        const itemId = currentHighlight.getAttribute('data-item-id');
+                        const itemName = currentHighlight.querySelector('.item-name').textContent;
+                        selectItem(itemId, itemName);
+                    }
+                } else if (e.key === 'Escape') {
+                    dropdown.style.display = 'none';
+                }
+            });
+
+            function filterItems() {
+                const query = searchInput.value.toLowerCase().trim();
+                const options = (scrollWrap || dropdown).querySelectorAll('.item-option');
+                
+                // Clear any highlights when filtering
+                options.forEach(option => option.classList.remove('highlighted'));
+                
+                options.forEach(option => {
+                    const name = option.querySelector('.item-name').textContent.toLowerCase();
+                    
+                    // Show all items if search is empty, otherwise filter by query
+                    if (query === '' || name.includes(query)) {
+                        option.style.display = 'flex';
+                    } else {
+                        option.style.display = 'none';
+                    }
+                });
+            }
+            clearBtn.addEventListener('click', () => {
+                searchInput.value='';
+                selectedItemInput.value='';
+                clearBtn.classList.remove('visible');
+                dropdown.querySelectorAll('.item-option').forEach(opt => opt.classList.remove('selected'));
+            });
+        }
+
+        // Select an item from the dropdown
+        function selectItem(itemId, itemName) {
+            const searchInput = document.getElementById('item-search');
+            const dropdown = document.getElementById('item-dropdown');
+            const selectedItemInput = document.getElementById('selected-item');
+            const clearBtn = document.getElementById('clear-item-btn');
+
+            searchInput.value = itemName;
+            selectedItemInput.value = itemId;
+            dropdown.style.display = 'none';
+
+            // Update selected styling
+            (dropdown.querySelector('.dropdown-scroll')||dropdown).querySelectorAll('.item-option').forEach(opt => opt.classList.remove('selected'));
+            dropdown.querySelector(`[data-item-id="${itemId}"]`)?.classList.add('selected');
+            clearBtn.classList.add('visible');
+        }
+        // Reposition dropdown to remain within viewport & choose above/below
+        function positionItemDropdown(){
+            const dropdown = document.getElementById('item-dropdown');
+            if(!dropdown || dropdown.style.display==='none') return;
+            dropdown.classList.remove('above');
+            const rect = dropdown.getBoundingClientRect();
+            const vh = window.innerHeight;
+            const spaceBelow = vh - rect.top - rect.height;
+            const trigger = document.getElementById('item-search');
+            if(spaceBelow < 20 && rect.top > rect.height && trigger){
+                dropdown.classList.add('above');
+            }
+            // Constrain height if overflowing after position change
+            const scrollWrap = document.getElementById('item-dropdown-scroll');
+            if(scrollWrap){
+                const wrapRect = scrollWrap.getBoundingClientRect();
+                const avail = dropdown.classList.contains('above') ? (rect.bottom - 20) : (vh - rect.top - 20);
+                const maxH = Math.min(352, avail);
+                scrollWrap.style.maxHeight = maxH + 'px';
+            }
+        }
+        window.addEventListener('resize', ()=>{ positionItemDropdown(); });
+
+        // Fetch items and recipes when page loads
+        Promise.all([
+            fetch('http://localhost:5000/api/items').then(res => res.json()),
+            fetch('http://localhost:5000/api/recipes').then(res => res.json()),
+            fetch('http://localhost:5000/api/recipes-with-status').then(res => res.json())
+        ]).then(([itemsData, recipesData, recipesWithStatusData]) => {
+            items = itemsData;
+            recipes = recipesData;
+            recipesWithStatus = recipesWithStatusData;
+            console.log('Loaded items:', items); // Debug log
+            
+            // Populate item selector
+            populateItemSelector();
+            
+            // Load recipe management
+            loadRecipeList();
+        }).catch(error => {
+            console.error('Error loading items and recipes:', error);
+        });
+
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        function showRecipeSubTab(subTabName) {
+            // Hide all sub-tab contents
+            document.querySelectorAll('.recipe-sub-tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            
+            // Remove active class from all sub-tabs
+            document.querySelectorAll('.sub-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected sub-tab content
+            document.getElementById(subTabName + '-recipes').style.display = 'block';
+            
+            // Add active class to clicked sub-tab
+            event.target.classList.add('active');
+            
+            currentRecipeSubTab = subTabName;
+            loadRecipeList();
+        }
+
+        function loadRecipeList() {
+            // Clear all lists
+            document.getElementById('main-recipe-list').innerHTML = '';
+            document.getElementById('alternate-recipe-list').innerHTML = '';
+            document.getElementById('resource-recipe-list').innerHTML = '';
+            
+            // Categorize recipes
+            const mainRecipes = [];
+            const alternateRecipes = [];
+            const resourceRecipes = [];
+            
+            Object.entries(recipesWithStatus).forEach(([recipeId, recipe]) => {
+                if (recipe.special_resource) {
+                    resourceRecipes.push([recipeId, recipe]);
+                } else if (recipe.alternate) {
+                    alternateRecipes.push([recipeId, recipe]);
+                } else {
+                    mainRecipes.push([recipeId, recipe]);
+                }
+            });
+            
+            // Update counts
+            document.getElementById('main-count').textContent = `(${mainRecipes.length})`;
+            document.getElementById('alternate-count').textContent = `(${alternateRecipes.length})`;
+            document.getElementById('resource-count').textContent = `(${resourceRecipes.length})`;
+            
+            // Populate lists
+            populateRecipeList('main-recipe-list', mainRecipes);
+            populateRecipeList('alternate-recipe-list', alternateRecipes);
+            populateRecipeList('resource-recipe-list', resourceRecipes);
+        }
+        
+        function populateRecipeList(containerId, recipesList) {
+            const container = document.getElementById(containerId);
+            
+            recipesList.forEach(([recipeId, recipe]) => {
+                const recipeItem = document.createElement('div');
+                let classes = 'recipe-item';
+                if (recipe.alternate) classes += ' alternate';
+                if (recipe.special_resource) classes += ' special-resource';
+                if (recipe.active) classes += ' active';
+                if (recipe.is_disabled) classes += ' disabled';
+                
+                recipeItem.className = classes;
+                
+                let badges = '';
+                if (recipe.alternate) badges += '<span style="color: #ff9800;">[ALT]</span>';
+                if (recipe.special_resource) badges += '<span style="color: #9c27b0;">[RES]</span>';
+                if (recipe.is_disabled) badges += '<span style="color: #666;">[DISABLED]</span>';
+                
+                const recipeIcon = getRecipeIcon(recipe);
+                const iconHtml = recipeIcon ? `<img src="${recipeIcon}" class="recipe-icon" alt="Recipe icon" onerror="this.style.display='none'">` : '';
+                
+                recipeItem.innerHTML = `
+                    <div class="recipe-name">
+                        ${iconHtml}
+                        <div>
+                            ${recipe.name}
+                            ${badges}
+                        </div>
+                    </div>
+                    <div class="recipe-toggle ${recipe.active && !recipe.is_disabled ? 'active' : ''}" 
+                         onclick="${recipe.is_disabled ? '' : `toggleRecipe('${recipeId}', ${!recipe.active})`}"
+                         title="${recipe.is_disabled ? recipe.disabled_reason || 'This recipe is disabled' : ''}"></div>
+                `;
+                
+                // Add hover event listeners
+                recipeItem.addEventListener('mouseenter', (e) => showRecipeTooltip(e, recipe));
+                recipeItem.addEventListener('mouseleave', hideRecipeTooltip);
+                recipeItem.addEventListener('mousemove', updateTooltipPosition);
+                
+                container.appendChild(recipeItem);
+            });
+        }
+
+        function toggleRecipe(recipeId, isActive) {
+            // Check if recipe is disabled
+            const recipe = recipesWithStatus[recipeId];
+            if (recipe && recipe.is_disabled) {
+                showToast(recipe.disabled_reason || 'This recipe is disabled and cannot be toggled.');
+                return;
+            }
+            
+            fetch('http://localhost:5000/api/active-recipes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    recipe_id: recipeId,
+                    active: isActive
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast('Error updating recipe: ' + data.error);
+                } else {
+                    // Update local data
+                    recipesWithStatus[recipeId].active = isActive;
+                    loadRecipeList();
+                }
+            })
+            .catch(error => {
+                console.error('Error updating recipe:', error);
+                showToast('Error updating recipe');
+            });
+        }
+
+        function toggleAllRecipes(isActive) {
+            const updates = {};
+            Object.keys(recipesWithStatus).forEach(recipeId => {
+                updates[recipeId] = isActive;
+            });
+            
+            fetch('http://localhost:5000/api/active-recipes/bulk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    updates: updates
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast('Error updating recipes: ' + data.error);
+                } else {
+                    // Update local data
+                    Object.keys(recipesWithStatus).forEach(recipeId => {
+                        recipesWithStatus[recipeId].active = isActive;
+                    });
+                    loadRecipeList();
+                }
+            })
+            .catch(error => {
+                console.error('Error updating recipes:', error);
+                showToast('Error updating recipes');
+            });
+        }
+
+        function toggleAlternateRecipes(isActive) {
+            const updates = {};
+            Object.entries(recipesWithStatus).forEach(([recipeId, recipe]) => {
+                if (recipe.alternate) {
+                    updates[recipeId] = isActive;
+                }
+            });
+            
+            fetch('http://localhost:5000/api/active-recipes/bulk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    updates: updates
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast('Error updating alternate recipes: ' + data.error);
+                } else {
+                    // Update local data
+                    Object.entries(updates).forEach(([recipeId, active]) => {
+                        recipesWithStatus[recipeId].active = active;
+                    });
+                    loadRecipeList();
+                }
+            })
+            .catch(error => {
+                console.error('Error updating alternate recipes:', error);
+                showToast('Error updating alternate recipes');
+            });
+        }
+
+        function toggleMainRecipes(isActive) {
+            const updates = {};
+            Object.entries(recipesWithStatus).forEach(([recipeId, recipe]) => {
+                if (!recipe.alternate && !recipe.special_resource) {
+                    updates[recipeId] = isActive;
+                }
+            });
+            
+            fetch('http://localhost:5000/api/active-recipes/bulk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    updates: updates
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast('Error updating main recipes: ' + data.error);
+                } else {
+                    // Update local data
+                    Object.entries(updates).forEach(([recipeId, active]) => {
+                        recipesWithStatus[recipeId].active = active;
+                    });
+                    loadRecipeList();
+                }
+            })
+            .catch(error => {
+                console.error('Error updating main recipes:', error);
+                showToast('Error updating main recipes');
+            });
+        }
+
+        function toggleSpecialResourceRecipes(isActive) {
+            const updates = {};
+            Object.entries(recipesWithStatus).forEach(([recipeId, recipe]) => {
+                if (recipe.special_resource) {
+                    updates[recipeId] = isActive;
+                }
+            });
+            
+            fetch('http://localhost:5000/api/active-recipes/bulk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    updates: updates
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast('Error updating special resource recipes: ' + data.error);
+                } else {
+                    // Update local data
+                    Object.entries(updates).forEach(([recipeId, active]) => {
+                        recipesWithStatus[recipeId].active = active;
+                    });
+                    loadRecipeList();
+                }
+            })
+            .catch(error => {
+                console.error('Error updating special resource recipes:', error);
+                showToast('Error updating special resource recipes');
+            });
+        }
+
+        // Unified bulk action buttons based on currently active sub-tab
+        function bulkToggleCurrent(isEnable){
+            if(currentRecipeSubTab === 'main'){ toggleMainRecipes(isEnable); }
+            else if(currentRecipeSubTab === 'alternate'){ toggleAlternateRecipes(isEnable); }
+            else if(currentRecipeSubTab === 'resource'){ toggleSpecialResourceRecipes(isEnable); }
+        }
+
+        function filterRecipes() {
+            const searchTerm = document.getElementById('recipe-search').value.toLowerCase();
+            
+            // Get the appropriate recipe list based on current sub-tab
+            const containerId = currentRecipeSubTab + '-recipe-list';
+            const recipeItems = document.getElementById(containerId).querySelectorAll('.recipe-item');
+            
+            recipeItems.forEach(item => {
+                const recipeName = item.querySelector('.recipe-name').textContent.toLowerCase();
+                if (recipeName.includes(searchTerm)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+    function showRecipeTooltip(event, recipe) {
+            const tooltip = document.getElementById('recipe-tooltip');
+            
+            // Calculate items per minute for ingredients and products
+            const recipeTime = recipe.time || 1.0;
+            const itemsPerMinuteMultiplier = 60 / recipeTime;
+            
+            let tooltipContent = `
+                <div class="tooltip-title">${recipe.name}</div>
+            `;
+            
+            // Show machine information with proper names
+            if (recipe.producedIn && recipe.producedIn.length > 0) {
+                const machineDisplayNames = recipe.producedIn.map(machine => getMachineName(machine));
+                tooltipContent += `
+                    <div class="tooltip-section">
+                        <div class="tooltip-machine">Machine: ${machineDisplayNames.join(', ')}</div>
+                    </div>
+                `;
+            }
+            
+            // Show recipe time
+            tooltipContent += `
+                <div class="tooltip-section">
+                    <div class="tooltip-machine">Recipe Time: ${recipeTime}s</div>
+                </div>
+            `;
+            
+            // Show ingredients with icons
+            if (recipe.ingredients && recipe.ingredients.length > 0) {
+                tooltipContent += `
+                    <div class="tooltip-section">
+                        <div class="tooltip-section-title">Ingredients:</div>
+                `;
+                recipe.ingredients.forEach(ingredient => {
+                    const itemName = items[ingredient.item] ? items[ingredient.item].name : ingredient.item;
+                    const perMinute = (ingredient.amount * itemsPerMinuteMultiplier).toFixed(1);
+                    const itemIcon = getItemImageUrl(ingredient.item);
+                    tooltipContent += `
+                        <div class="tooltip-item">
+                            <div class="tooltip-item-content">
+                                <img src="${itemIcon}" class="item-icon" alt="Item icon" onerror="this.style.display='none'">
+                                <span>${itemName}</span>
+                            </div>
+                            <span>${perMinute}/min</span>
+                        </div>
+                    `;
+                });
+                tooltipContent += `</div>`;
+            }
+            
+            // Show products with icons
+            if (recipe.products && recipe.products.length > 0) {
+                tooltipContent += `
+                    <div class="tooltip-section">
+                        <div class="tooltip-section-title">Products:</div>
+                `;
+                recipe.products.forEach(product => {
+                    const itemName = items[product.item] ? items[product.item].name : product.item;
+                    const perMinute = (product.amount * itemsPerMinuteMultiplier).toFixed(1);
+                    const itemIcon = getItemImageUrl(product.item);
+                    tooltipContent += `
+                        <div class="tooltip-item">
+                            <div class="tooltip-item-content">
+                                <img src="${itemIcon}" class="item-icon" alt="Item icon" onerror="this.style.display='none'">
+                                <span>${itemName}</span>
+                            </div>
+                            <span>${perMinute}/min</span>
+                        </div>
+                    `;
+                });
+                tooltipContent += `</div>`;
+            }
+            
+            tooltip.innerHTML = tooltipContent;
+            tooltip.style.display = 'block';
+            const mx = (event.pageX !== undefined ? event.pageX : event.clientX);
+            const my = (event.pageY !== undefined ? event.pageY : event.clientY);
+            updateTooltipPosition(mx, my);
+        }
+        
+        function hideRecipeTooltip() {
+            const tooltip = document.getElementById('recipe-tooltip');
+            tooltip.style.display = 'none';
+        }
+        
+    function updateTooltipPosition(mouseX, mouseY) {
+            const tooltip = document.getElementById('recipe-tooltip');
+            if(mouseX == null || isNaN(mouseX)) mouseX = lastPointer.x; if(mouseY == null || isNaN(mouseY)) mouseY = lastPointer.y;
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            
+            // Position tooltip to the right of cursor by default
+            let left = mouseX + 18;
+            let top = mouseY + 12;
+            
+            // If tooltip would go off the right edge, position it to the left of cursor
+            if (left + tooltipRect.width > windowWidth - 10) {
+                left = mouseX - tooltipRect.width - 15;
+            }
+            
+            // If tooltip would go off the bottom edge, position it above cursor
+            if (top + tooltipRect.height > windowHeight - 10) {
+                top = mouseY - tooltipRect.height - 10;
+            }
+            
+            // Ensure tooltip doesn't go off the left or top edges
+            left = Math.max(10, left);
+            top = Math.max(10, top);
+            
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+        }
+
+        function buildNodeTooltipContent(nodeData){
+            // nodeData may represent recipe, base resource, surplus, end product
+            let html = `<div class="tooltip-title">${nodeData.recipe_name || items[nodeData.target_item_id]?.name || items[nodeData.surplus_item_id]?.name || 'Node'}</div>`;
+            if(nodeData.machine_display){
+                html += `<div class="tooltip-section"><div class="tooltip-machine">${nodeData.machine_display}</div></div>`;
+            }
+            if(nodeData.recipe_time){
+                html += `<div class="tooltip-section"><div class="tooltip-machine">Recipe Time: ${nodeData.recipe_time}s</div></div>`;
+            }
+            const addIO = (list, title) => {
+                if(list && Object.keys(list).length){
+                    html += `<div class="tooltip-section"><div class="tooltip-section-title">${title}:</div>`;
+                    Object.entries(list).forEach(([iid, amt])=>{
+                        const itemName = items[iid]?.name || iid;
+                        const itemIcon = getItemImageUrl(iid);
+                        html += `<div class="tooltip-item"><div class="tooltip-item-content"><img src="${itemIcon}" class="item-icon" onerror="this.style.display='none'"><span>${itemName}</span></div><span>${amt.toFixed(4)}/min</span></div>`;
+                    });
+                    html += `</div>`;
+                }
+            };
+            addIO(nodeData.inputs, 'Inputs');
+            addIO(nodeData.outputs, 'Outputs');
+            if(nodeData.is_surplus_node){
+                html += `<div class="tooltip-section"><div class="tooltip-item">Surplus: ${(nodeData.surplus_amount||0).toFixed(4)}/min</div></div>`;
+            }
+            if(nodeData.is_end_product_node){
+                html += `<div class="tooltip-section"><div class="tooltip-item">Target: ${(nodeData.target_amount||0).toFixed(4)}/min</div></div>`;
+            }
+            return html;
+        }
+
+        function showGraphNodeTooltip(nodeId, rawParams){
+            const tooltip = document.getElementById('recipe-tooltip');
+            if(!window._nodeIndex) return;
+            const nodeObj = window._nodeIndex[nodeId];
+            if(!nodeObj) return;
+            tooltip.innerHTML = buildNodeTooltipContent(nodeObj.nodeData || {});
+            tooltip.style.display = 'block';
+            // vis network passes params with pointer.DOM (relative to container)
+            let clientX = lastPointer.x, clientY = lastPointer.y;
+            if(rawParams && rawParams.pointer && rawParams.pointer.DOM){
+                const container = document.getElementById('production-graph');
+                const rect = container.getBoundingClientRect();
+                clientX = rect.left + rawParams.pointer.DOM.x;
+                clientY = rect.top + rawParams.pointer.DOM.y;
+                lastPointer.x = clientX; lastPointer.y = clientY;
+            } else if(rawParams && rawParams.event && rawParams.event.srcEvent){
+                const ev = rawParams.event.srcEvent;
+                if(ev.clientX!=null){ clientX = ev.clientX; lastPointer.x = clientX; }
+                if(ev.clientY!=null){ clientY = ev.clientY; lastPointer.y = clientY; }
+            }
+            updateTooltipPosition(clientX, clientY);
+        }
+
+        function setupGlobalPointerTracking(){
+            document.addEventListener('mousemove', e=>{ lastPointer.x = e.clientX; lastPointer.y = e.clientY; });
+        }
+        setupGlobalPointerTracking();
+    function tooltipIsVisible(){ const t=document.getElementById('recipe-tooltip'); return t && t.style.display==='block'; }
+            function createNetwork(data) {
+                const container = document.getElementById('production-graph');
+                
+                // Clear existing network
+                if (network !== null) {
+                    network.destroy();
+                    network = null;
+                }
+                
+                const nodes = [];
+                const edges = [];
+                
+                // Check if we have the new recipe-centric format
+                if (data.production_graph && data.production_graph.recipe_nodes) {
+                    // NEW RECIPE-CENTRIC APPROACH
+                    const recipeNodes = data.production_graph.recipe_nodes;
+                    const targetItem = data.production_graph.target_item || data.target_item;
+                    const targetAmount = data.production_graph.target_amount || data.amount_requested || 0;
+                    // Track aggregate item production/consumption to derive surplus
+                    const produced = {};
+                    const consumed = {};
+                    
+                    // Create recipe nodes
+                    Object.entries(recipeNodes).forEach(([nodeId, nodeData]) => {
+                        let nodeLabel = nodeData.recipe_name;
+                        let nodeColor = '#3d5999'; // Blue for recipes
+                        let nodeShape = 'box';
+                        
+                        if (nodeData.is_surplus_node) {
+                            // Special handling for surplus nodes
+                            const surplusAmount = nodeData.surplus_amount || 0;
+                            nodeLabel = `${surplusAmount.toFixed(4)}/min\n${items[nodeData.surplus_item_id]?.name || nodeData.surplus_item_id}`;
+                            nodeColor = '#ff6b35'; // Orange for surplus
+                            nodeShape = 'circle';
+                        } else if (nodeData.is_end_product) {
+                            // Special handling for end product nodes
+                            const targetAmount = nodeData.target_amount || 0;
+                            nodeLabel = `${targetAmount.toFixed(4)}/min\n${items[nodeData.target_item_id]?.name || nodeData.target_item_id}`;
+                            nodeColor = '#28a745'; // Green for end product
+                            nodeShape = 'circle';
+                        } else if (nodeData.is_base_resource) {
+                            const machineDisplay = nodeData.machine_display || `${(nodeData.machines_needed || 0).toFixed(1)} ${getMachineName(nodeData.machine_type)}`;
+                            nodeLabel += '\n' + machineDisplay;
+                            nodeColor = '#4a7c59'; // Green for base resources
+                        } else if (nodeData.is_alternate) {
+                            const machineDisplay = nodeData.machine_display || `${(nodeData.machines_needed || 0).toFixed(1)} ${getMachineName(nodeData.machine_type)}`;
+                            nodeLabel += '\n' + machineDisplay;
+                            nodeColor = '#cc6600'; // Orange for alternates
+                        } else {
+                            const machineDisplay = nodeData.machine_display || `${(nodeData.machines_needed || 0).toFixed(1)} ${getMachineName(nodeData.machine_type)}`;
+                            nodeLabel += '\n' + machineDisplay;
+                        }
+                        
+                        const node = {
+                            id: nodeId,
+                            label: nodeLabel,
+                            shape: nodeShape,
+                            color: {
+                                background: nodeColor,
+                                border: '#4d4d4d'
+                            },
+                            font: {
+                                color: '#ffffff',
+                                size: (nodeData.is_surplus_node || nodeData.is_end_product_node) ? 10 : 12
+                            },
+                            nodeData: nodeData
+                        };
+                        
+                        // Add item image for surplus and end product nodes
+                        if (nodeData.is_surplus_node) {
+                            const itemImageUrl = getItemImageUrl_256(nodeData.surplus_item_id);
+                            node.image = itemImageUrl;
+                            node.shape = 'circularImage';
+                            node.size = 40; 
+                            node.font.color = '#ffffff';
+                            node.font.strokeWidth = 2;
+                            node.font.strokeColor = '#000000';
+                        } else if (nodeData.is_end_product_node) {
+                            const itemImageUrl = getItemImageUrl_256(nodeData.target_item_id);
+                            node.image = itemImageUrl;
+                            node.shape = 'circularImage';
+                            node.size = 40; // Increased from 60 (slightly larger for end product)
+                            node.font.color = '#ffffff';
+                            node.font.strokeWidth = 3;
+                            node.font.strokeColor = '#000000';
+                            node.borderWidth = 3;
+                            node.color.border = '#28a745';
+                        }
+                        
+                        nodes.push(node);
+
+                        // Accumulate item I/O for surplus detection
+                        Object.entries(nodeData.outputs || {}).forEach(([iid, amt]) => { produced[iid] = (produced[iid] || 0) + (amt || 0); });
+                        Object.entries(nodeData.inputs || {}).forEach(([iid, amt]) => { consumed[iid] = (consumed[iid] || 0) + (amt || 0); });
+                    });
+
+                    // Create end product node (even if already only target nodes exist) to visually terminate chain
+                    if (targetItem) {
+                        const endNodeId = 'end_product_node';
+                        const endNode = {
+                            id: endNodeId,
+                            label: `${(targetAmount||0).toFixed(4)}/min\n${items[targetItem]?.name || targetItem}`,
+                            shape: 'circularImage',
+                            image: getItemImageUrl_256(targetItem),
+                            size: 46,
+                            font: { color: '#ffffff', strokeWidth: 2, strokeColor: '#000', size: 14 },
+                            color: { background: '#28a745', border: '#28a745' },
+                            nodeData: { is_end_product_node: true, target_item_id: targetItem, target_amount: targetAmount }
+                        };
+                        nodes.push(endNode);
+                    }
+
+                    // Surplus nodes for any positive (produced - consumed) excluding target item
+                    Object.keys(produced).forEach(iid => {
+                        const surplus = (produced[iid] || 0) - (consumed[iid] || 0);
+                        // Only render surplus nodes if > 0.01 / min (to avoid rounding noise)
+                        if (surplus > 0.01 && iid !== targetItem) {
+                            const sid = `surplus_${iid}`;
+                            nodes.push({
+                                id: sid,
+                                label: `${surplus.toFixed(4)}/min\n${items[iid]?.name || iid}`,
+                                shape: 'circularImage',
+                                image: getItemImageUrl_256(iid),
+                                size: 38,
+                                font: { color: '#ffffff', strokeWidth: 2, strokeColor: '#000', size: 12 },
+                                color: { background: '#ff6b35', border: '#ff6b35' },
+                                nodeData: { is_surplus_node: true, surplus_item_id: iid, surplus_amount: surplus }
+                            });
+                        }
+                    });
+
+                    // Create edges for item flows between recipes
+                    const edgeTracker = {}; // Track edges between node pairs
+                    
+                    Object.entries(recipeNodes).forEach(([fromNodeId, fromNode]) => {
+                        // For each output of this recipe node
+                        Object.entries(fromNode.outputs || {}).forEach(([itemId, outputAmount]) => {
+                            // Find recipe nodes that consume this item (including surplus and end product nodes)
+                            Object.entries(recipeNodes).forEach(([toNodeId, toNode]) => {
+                                if (fromNodeId !== toNodeId && toNode.inputs && toNode.inputs[itemId]) {
+                                    const consumedAmount = toNode.inputs[itemId];
+                                    const flowAmount = Math.min(outputAmount, consumedAmount);
+                                    
+                                    if (flowAmount > 0.001) { // Avoid tiny flows
+                                        const itemName = items[itemId]?.name || itemId;
+                                        
+                                        // Create edge pair key for tracking overlaps
+                                        const edgeKey = `${fromNodeId}-${toNodeId}`;
+                                        const reverseEdgeKey = `${toNodeId}-${fromNodeId}`;
+                                        
+                                        // Check if this creates a feedback loop or overlap
+                                        let useSmoothCurve = false;
+                                        let smoothType = 'continuous';
+                                        let curvature = 0.2;
+                                        
+                                        if (edgeTracker[reverseEdgeKey]) {
+                                            // Feedback loop detected - use curve to separate
+                                            useSmoothCurve = true;
+                                            smoothType = 'curvedCW';
+                                            curvature = 0.4;
+                                        } else if (edgeTracker[edgeKey]) {
+                                            // Multiple edges between same nodes - use curve to separate
+                                            useSmoothCurve = true;
+                                            edgeTracker[edgeKey].count++;
+                                            curvature = 0.3 + (edgeTracker[edgeKey].count * 0.2);
+                                            smoothType = edgeTracker[edgeKey].count % 2 === 0 ? 'curvedCW' : 'curvedCCW';
+                                        } else {
+                                            // First edge between these nodes - use straight line
+                                            edgeTracker[edgeKey] = { count: 1 };
+                                        }
+                                        
+                                        // Special styling for different edge types
+                                        let edgeColor = '#007acc';
+                                        let edgeStyle = 'solid';
+                                        const safeFlowAmount = flowAmount || 0;
+                                        let edgeLabel = `${itemName}\n${safeFlowAmount.toFixed(4)}/min`;
+                                        
+                                        if (toNode.is_surplus_node) {
+                                            edgeColor = '#ff6b35';
+                                            edgeStyle = 'dashed';
+                                            edgeLabel = `${safeFlowAmount.toFixed(4)}/min surplus`;
+                                        } else if (toNode.is_end_product_node) {
+                                            edgeColor = '#28a745';
+                                            edgeStyle = 'solid';
+                                            edgeLabel = `${safeFlowAmount.toFixed(4)}/min output`;
+                                        }
+                                        
+                                        edges.push({
+                                            from: fromNodeId,
+                                            to: toNodeId,
+                                            label: edgeLabel,
+                                            color: {
+                                                color: edgeColor,
+                                                highlight: '#0098ff'
+                                            },
+                                            font: {
+                                                color: '#cccccc',
+                                                size: 10
+                                            },
+                                            arrows: {
+                                                to: true
+                                            },
+                                            width: Math.max(1, Math.min(4, flowAmount / 20)),
+                                            dashes: (toNode.is_surplus_node) ? [5, 5] : false,
+                                            smooth: useSmoothCurve ? {
+                                                enabled: true,
+                                                type: smoothType,
+                                                roundness: curvature
+                                            } : false
+                                        });
+                                    }
+                                }
+                            });
+                        });
+                    });
+
+                    // Connect producers to end product node
+                    if (targetItem) {
+                        const endId = 'end_product_node';
+                        Object.entries(recipeNodes).forEach(([fromNodeId, fromNode]) => {
+                            const producedAmt = fromNode.outputs && fromNode.outputs[targetItem];
+                            if (producedAmt && producedAmt > 1e-6) {
+                                edges.push({
+                                    from: fromNodeId,
+                                    to: endId,
+                                    label: `${producedAmt.toFixed(4)}/min output`,
+                                    color: { color: '#28a745', highlight: '#2bd65a' },
+                                    font: { color: '#cccccc', size: 10 },
+                                    arrows: { to: true },
+                                    width: Math.max(1, Math.min(4, producedAmt / 20))
+                                });
+                            }
+                        });
+                    }
+
+                    // Connect producers to surplus nodes
+                    nodes.filter(n => n.nodeData && n.nodeData.is_surplus_node).forEach(sNode => {
+                        const iid = sNode.nodeData.surplus_item_id;
+                        Object.entries(recipeNodes).forEach(([fromNodeId, fromNode]) => {
+                            const producedAmt = fromNode.outputs && fromNode.outputs[iid];
+                            if (producedAmt && producedAmt > 1e-6) {
+                                edges.push({
+                                    from: fromNodeId,
+                                    to: sNode.id,
+                                    label: `${producedAmt.toFixed(4)}/min surplus`,
+                                    color: { color: '#ff6b35', highlight: '#ff834f' },
+                                    font: { color: '#cccccc', size: 10 },
+                                    arrows: { to: true },
+                                    dashes: [5,5],
+                                    width: Math.max(1, Math.min(4, producedAmt / 20))
+                                });
+                            }
+                        });
+                    });
+                } else {
+                    // FALLBACK TO OLD ITEM-CENTRIC APPROACH
+                    // Create nodes
+                    Object.entries(data.production_chain).forEach(([itemId, details]) => {
+                        const itemName = details.item_name || items[itemId]?.name || itemId;
+                        
+                        const safeAmountNeeded = details.amount_needed || 0;
+                        let nodeLabel = itemName + '\n' + safeAmountNeeded.toFixed(4) + '/min';
+                        let nodeColor = '#3d3d3d';
+                        
+                        if (details.is_base_resource) {
+                            const machineDisplay = details.machine_display || `${(details.machines_needed || 0).toFixed(1)} ${details.machine_type}`;
+                            nodeLabel += '\n' + machineDisplay;
+                            nodeColor = '#4a4a2d'; // Yellowish for base resources
+                        } else if (details.is_unknown_resource) {
+                            nodeLabel += '\n(Unknown Resource)';
+                            nodeColor = '#4a2d2d'; // Reddish for unknown resources
+                        } else {
+                            const machineDisplay = details.machine_display || `${(details.machines_needed || 0).toFixed(1)} ${details.machine_type}`;
+                            nodeLabel += '\n' + machineDisplay;
+                            nodeColor = '#2d3d4a'; // Blueish for production
+                        }
+                        
+                        nodes.push({
+                            id: itemId,
+                            label: nodeLabel,
+                            shape: 'box',
+                            color: {
+                                background: nodeColor,
+                                border: '#4d4d4d'
+                            },
+                            font: {
+                                color: '#ffffff',
+                                size: 14
+                            }
+                        });
+                    });
+
+                    // Create edges
+                    Object.entries(data.production_chain).forEach(([itemId, details]) => {
+                        Object.entries(details.inputs || {}).forEach(([inputId, amount]) => {
+                            const safeAmount = amount || 0;
+                            edges.push({
+                                from: inputId,
+                                to: itemId,
+                                label: `${safeAmount.toFixed(1)}/min`,
+                                color: {
+                                    color: '#007acc',
+                                    highlight: '#0098ff'
+                                },
+                                font: {
+                                    color: '#cccccc'
+                                },
+                                arrows: {
+                                    to: true
+                                }
+                            });
+                        });
+                    });
+                }
+
+                // Create ELK graph for layout
+                const elkGraph = {
+                    id: 'root',
+                    layoutOptions: {
+                        'elk.algorithm': 'org.eclipse.elk.layered',
+                        'elk.direction': 'RIGHT',
+                        'elk.spacing.nodeNode': '50',
+                        'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+                        'elk.layered.nodePlacement.strategy': 'SIMPLE'
+                    },
+                    children: [],
+                    edges: []
+                };
+
+                // Add nodes to ELK graph
+                nodes.forEach(node => {
+                    elkGraph.children.push({
+                        id: node.id,
+                        width: 200,
+                        height: 80
+                    });
+                });
+
+                // Add edges to ELK graph
+                edges.forEach(edge => {
+                    elkGraph.edges.push({
+                        id: `${edge.from}-${edge.to}`,
+                        source: edge.from,
+                        target: edge.to
+                    });
+                });
+
+                // Create the network with initial layout
+                const options = {
+                    autoResize: true,
+                    nodes: {
+                        margin: 15, // Increased margin for better spacing
+                        widthConstraint: {
+                            minimum: 150
+                        },
+                        shape: 'box',
+                        font: {
+                            face: 'Roboto',
+                            size: 14
+                        },
+                        fixed: false
+                    },
+                    edges: {
+                        smooth: {
+                            enabled: false  // Default to straight edges
+                        },
+                        arrows: {
+                            to: {
+                                enabled: true,
+                                scaleFactor: 1.2
+                            }
+                        },
+                        labelHighlightBold: false,
+                        font: {
+                            strokeWidth: 2,
+                            strokeColor: '#000000'
+                        }
+                    },
+                    physics: {
+                        enabled: false
+                    },
+                    interaction: {
+                        dragNodes: true,
+                        dragView: true,
+                        zoomView: true,
+                        hover: true,
+                        navigationButtons: true,
+                        selectConnectedEdges: false
+                    },
+                    layout: {
+                        improvedLayout: true,
+                        clusterThreshold: 100
+                    }
+                };
+
+                network = new vis.Network(container, {
+                    nodes: new vis.DataSet(nodes),
+                    edges: new vis.DataSet(edges)
+                }, options);
+
+                // Build node index for tooltips
+                window._nodeIndex = {};
+                nodes.forEach(n => { window._nodeIndex[n.id] = n; });
+
+                network.on('hoverNode', params => {
+                    // Schedule delayed tooltip to avoid instant popups
+                    if(nodeHoverTimer){ clearTimeout(nodeHoverTimer); nodeHoverTimer = null; }
+                    pendingNodeId = params.node;
+                    const captured = { ...params };
+                    nodeHoverTimer = setTimeout(()=>{
+                        if(pendingNodeId === captured.node){
+                            showGraphNodeTooltip(captured.node, captured);
+                        }
+                    }, 350); // 350ms delay
+                });
+                network.on('pointerMove', params => { if(params && params.pointer && params.pointer.DOM){ const container = document.getElementById('production-graph'); const rect = container.getBoundingClientRect(); lastPointer.x = rect.left + params.pointer.DOM.x; lastPointer.y = rect.top + params.pointer.DOM.y; if(tooltipIsVisible()){ updateTooltipPosition(lastPointer.x, lastPointer.y); } } });
+                network.on('blurNode', () => { if(nodeHoverTimer){ clearTimeout(nodeHoverTimer); nodeHoverTimer=null; } pendingNodeId=null; hideRecipeTooltip(); });
+                network.on('dragStart', () => { if(nodeHoverTimer){ clearTimeout(nodeHoverTimer); nodeHoverTimer=null; } pendingNodeId=null; hideRecipeTooltip(); });
+                network.on('zoom', () => { if(nodeHoverTimer){ clearTimeout(nodeHoverTimer); nodeHoverTimer=null; } pendingNodeId=null; hideRecipeTooltip(); });
+                network.on('dragging', () => { if(nodeHoverTimer){ clearTimeout(nodeHoverTimer); nodeHoverTimer=null; } pendingNodeId=null; hideRecipeTooltip(); });
+
+                // Apply ELK layout
+                const elk = new ELK();
+                elk.layout(elkGraph).then((layoutedGraph) => {
+                    const nodeUpdates = [];
+                    layoutedGraph.children.forEach((child) => {
+                        nodeUpdates.push({
+                            id: child.id,
+                            x: child.x,
+                            y: child.y
+                        });
+                    });
+                    
+                    network.setData({
+                        nodes: new vis.DataSet(nodes.map(node => {
+                            const layout = nodeUpdates.find(u => u.id === node.id);
+                            return layout ? { ...node, x: layout.x, y: layout.y } : node;
+                        })),
+                        edges: new vis.DataSet(edges)
+                    });
+
+                    // Fit the network to show all nodes
+                    setTimeout(() => {
+                        network.fit({
+                            animation: {
+                                duration: 1000,
+                                easingFunction: 'easeInOutQuad'
+                            }
+                        });
+                    }, 100);
+                }).catch(error => {
+                    console.error('ELK layout error:', error);
+                    // Fallback to default vis.js layout
+                    network.once('afterDrawing', () => {
+                        network.fit({
+                            animation: true,
+                            padding: 50
+                        });
+                    });
+                });
+
+                updateStats(data);
+            }
+
+        function updateStats(data) {
+            const stats = document.getElementById('stats');
+            const s = data.summary || {};
+            let html = '<ul style="list-style:none;padding:0;margin:0;line-height:1.4;">';
+            html += `<li><strong>Strategy:</strong> ${data.optimization_strategy.replace('_',' ').toUpperCase()}</li>`;
+            html += `<li><strong>Total Machines (theoretical/actual):</strong> ${s.total_machines}/${s.total_actual_machines}</li>`;
+            // Base resources
+            html += '<li style="margin-top:8px;"><strong>Base Resources / min:</strong></li>';
+            Object.entries(s.base_resources || {}).forEach(([iid, amt])=>{
+                const name = items[iid]?.name || iid; html += `<li style=\"margin-left:12px;\">${name}: ${amt}</li>`;
+            });
+            html += '<li style="margin-top:8px;"><strong>Graph:</strong></li>';
+            html += `<li style="margin-left:12px;">Recipe nodes: ${s.total_recipe_nodes}</li>`;
+            html += `<li style="margin-left:12px;">Base nodes: ${s.total_base_resource_nodes}</li>`;
+            html += `<li style="margin-left:12px;">Unique base types: ${s.unique_base_resource_types}</li>`;
+            html += `<li style="margin-left:12px;">Total base/min: ${s.total_base_resource_amount}</li>`;
+            html += '</ul>';
+            stats.innerHTML = html;
+        }
+
+        function calculate() {
+            const item = document.getElementById('selected-item').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const optimization = document.getElementById('optimization').value;
+
+            if (!item || !amount || isNaN(amount) || amount <= 0) {
+                showToast('Please select an item and enter a valid amount');
+                return;
+            }
+
+            fetch('http://localhost:5000/api/calculate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    item: item,
+                    amount: amount,
+                    optimization_strategy: optimization
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast(data.error);
+                } else {
+                    createNetwork(data);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error calculating production chain');
+            });
+        }
+        /* Material You dynamic accent generator */
+        function setDynamicAccent(seedHex){
+            if(!/^#?[0-9a-fA-F]{6}$/.test(seedHex)) return;
+            if(seedHex[0] !== '#') seedHex = '#'+seedHex;
+            const r = parseInt(seedHex.substr(1,2),16);
+            const g = parseInt(seedHex.substr(3,2),16);
+            const b = parseInt(seedHex.substr(5,2),16);
+            // Convert to HSL
+            const max = Math.max(r,g,b), min = Math.min(r,g,b);
+            let h, s, l=(max+min)/510; // 0..1
+            const d = max - min;
+            if(d===0){h=0;s=0;} else {
+                s = l>0.5? d/(510 - max - min) : d/(max+min);
+                switch(max){
+                    case r: h=(g-b)/d + (g<b?6:0); break;
+                    case g: h=(b-r)/d + 2; break;
+                    case b: h=(r-g)/d + 4; break;
+                }
+                h/=6;
+            }
+            const hue = Math.round(h*360);
+            document.documentElement.style.setProperty('--md-hue', hue);
+        }
+        // Theme toggle
+        const themeToggle = document.getElementById('themeToggle');
+        let light = false;
+        themeToggle.addEventListener('click', ()=>{
+            light = !light;
+            if(light){document.body.classList.add('light-theme');} else {document.body.classList.remove('light-theme');}
+        });
+        // Initialize accent using a seeded color (could be from target item later)
+        setDynamicAccent('#3d8bff');
+        // On calculation, adapt accent to target item ID hash
+        function accentFromItem(itemId){
+            let hash=0; for(let i=0;i<itemId.length;i++){ hash = ((hash<<5)-hash + itemId.charCodeAt(i))|0; }
+            const r = (hash & 0xFF), g = (hash>>8)&0xFF, b=(hash>>16)&0xFF;
+            const hex = '#'+[r,g,b].map(v=>('0'+(v&0xFF).toString(16)).slice(-2)).join('');
+            setDynamicAccent(hex);
+        }
+                // Override calculate for accent + basic payload (custom strategy removed)
+                let _calcInFlight = false;
+                calculate = function(){
+                    if(_calcInFlight) return; // prevent double submits
+                    const strat = document.getElementById('optimization').value;
+                    const item = document.getElementById('selected-item').value;
+                    if(item) accentFromItem(item);
+                    const amount = parseFloat(document.getElementById('amount').value);
+                    if(!item || !amount || amount <= 0){ showToast('Please select an item and enter a valid amount'); return; }
+                    const payload = { item, amount, optimization_strategy: strat };
+                    const btn = document.getElementById('calcBtn');
+                    const barWrap = document.getElementById('calc-progress-wrapper');
+                    barWrap.classList.remove('finishing');
+                    barWrap.style.display='block';
+                    btn.disabled = true; btn.textContent = 'Calculating...';
+                    _calcInFlight = true;
+                    fetch('http://localhost:5000/api/calculate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+                        .then(r => r.json())
+                        .then(data => { if(data.error){ showToast(data.error); } else { createNetwork(data); } })
+                        .catch(e => { console.error(e); showToast('Error calculating production chain'); })
+                        .finally(()=>{ _calcInFlight=false; btn.disabled=false; btn.textContent='Calculate Production Chain';
+                            // graceful fade out
+                            barWrap.classList.add('finishing');
+                            setTimeout(()=>{ if(!_calcInFlight){ barWrap.style.display='none'; barWrap.classList.remove('finishing'); } }, 380);
+                        });
+                }
+    </script>
+</body>
+</html>
