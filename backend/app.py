@@ -106,7 +106,9 @@ def clean_nan_values(obj):
     else:
         return obj
 
-data = json.load(open('data1.0.json', 'r', encoding='utf-8'))
+DATA_PATH = os.path.join(BASE_DIR, 'data1.0.json')
+with open(DATA_PATH, 'r', encoding='utf-8') as f:
+    data = json.load(f)
 all_items = data.get('items', {})
 all_recipes = data.get('recipes', {})
 recipes = {name: recipe for name, recipe in all_recipes.items() if not recipe.get('forBuilding', False) and recipe.get('inMachine', True)}
