@@ -1,5 +1,6 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+import os
 import json, math
 from functools import lru_cache
 from collections import defaultdict, deque
@@ -12,8 +13,25 @@ except Exception:
 DEFAULT_SOLVER_TIME_LIMIT = 10  # seconds total budget
 DEFAULT_REL_GAP = 0.0  # 0 for exact; can relax for speed
 
-app = Flask(__name__)
-CORS(app)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, '..', 'frontend')
+
+app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
+# In production you may wish to restrict origins; keep * for now.
+CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+@app.route('/')
+def index():
+    """Serve the SPA index."""
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/images/<path:fname>')
+def images(fname):
+    return send_from_directory(os.path.join(app.static_folder, 'images'), fname)
+
+@app.route('/api/health')
+def health():
+    return jsonify(status='ok')
 
 recipe_complexity_cache = {}
 
@@ -376,7 +394,7 @@ def discover_all_dependencies(target_item, visited=None, max_depth=15):
     return visited
 
 # Global debug flag for calculation verbosity
-DEBUG_CALC = True
+DEBUG_CALC = os.environ.get('APP_DEBUG', '0') == '1'
 
 def _dbg(msg):
     if DEBUG_CALC:
@@ -1420,4 +1438,8 @@ def calculate_production_lp():
         summary=calculate_summary_stats_v2(graph)
         return jsonify(clean_nan_values({'production_graph':graph,'target_item':target,'target_item_name':items.get(target,{}).get('name',target),'amount_requested':amt,'optimization_strategy':strat,'weights_used':weights,'summary':summary,'lp':True}))
     except Exception as e:
-        return jsonify({'error':str(e)}),500
+    return jsonify({'error':str(e)}),500
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: satisfactory-planner
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers=3 --timeout=120
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "0"
+      - key: PYTHONUNBUFFERED
+        value: "1"

@@ -582,9 +582,9 @@
 
         // Fetch items and recipes when page loads
         Promise.all([
-            fetch('http://localhost:5000/api/items').then(res => res.json()),
-            fetch('http://localhost:5000/api/recipes').then(res => res.json()),
-            fetch('http://localhost:5000/api/recipes-with-status').then(res => res.json())
+            fetch('/api/items').then(res => res.json()),
+            fetch('/api/recipes').then(res => res.json()),
+            fetch('/api/recipes-with-status').then(res => res.json())
         ]).then(([itemsData, recipesData, recipesWithStatusData]) => {
             items = itemsData;
             recipes = recipesData;
@@ -722,7 +722,7 @@
                 return;
             }
             
-            fetch('http://localhost:5000/api/active-recipes', {
+            fetch('/api/active-recipes', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -754,7 +754,7 @@
                 updates[recipeId] = isActive;
             });
             
-            fetch('http://localhost:5000/api/active-recipes/bulk', {
+            fetch('/api/active-recipes/bulk', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -789,7 +789,7 @@
                 }
             });
             
-            fetch('http://localhost:5000/api/active-recipes/bulk', {
+            fetch('/api/active-recipes/bulk', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -824,7 +824,7 @@
                 }
             });
             
-            fetch('http://localhost:5000/api/active-recipes/bulk', {
+            fetch('/api/active-recipes/bulk', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -859,7 +859,7 @@
                 }
             });
             
-            fetch('http://localhost:5000/api/active-recipes/bulk', {
+            fetch('/api/active-recipes/bulk', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1578,7 +1578,7 @@
                 return;
             }
 
-            fetch('http://localhost:5000/api/calculate', {
+            fetch('/api/calculate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1657,7 +1657,7 @@
                     barWrap.style.display='block';
                     btn.disabled = true; btn.textContent = 'Calculating...';
                     _calcInFlight = true;
-                    fetch('http://localhost:5000/api/calculate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+                    fetch('/api/calculate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
                         .then(r => r.json())
                         .then(data => { if(data.error){ showToast(data.error); } else { createNetwork(data); } })
                         .catch(e => { console.error(e); showToast('Error calculating production chain'); })
