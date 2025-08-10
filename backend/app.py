@@ -1425,22 +1425,41 @@ def calculate_summary_stats_v2(graph: dict):
 
 @app.route('/api/calculate', methods=['POST'])
 def calculate_production_lp():
-    data=request.json
-    target=data.get('item'); amt=float(data.get('amount',0)); strat=data.get('optimization_strategy','balanced_production')
-    if strat==REMOVED_STRATEGY: strat='balanced_production'
-    weights=data.get('weights') or {}
-    solver_opts=data.get('solver') or {}
-    time_limit=float(solver_opts.get('time_limit', DEFAULT_SOLVER_TIME_LIMIT))
-    rel_gap=float(solver_opts.get('rel_gap', DEFAULT_REL_GAP))
-    if not target or amt<=0: return jsonify({'error':'Missing parameters'}),400
-    if target not in items: return jsonify({'error':'Invalid item'}),400
+    data = request.json or {}
+    target = data.get('item')
+    amt = float(data.get('amount', 0))
+    strat = data.get('optimization_strategy', 'balanced_production')
+    if strat == REMOVED_STRATEGY:
+        strat = 'balanced_production'
+    weights = data.get('weights') or {}
+    solver_opts = data.get('solver') or {}
+    time_limit = float(solver_opts.get('time_limit', DEFAULT_SOLVER_TIME_LIMIT))
+    rel_gap = float(solver_opts.get('rel_gap', DEFAULT_REL_GAP))
+
+    if not target or amt <= 0:
+        return jsonify({'error': 'Missing parameters'}), 400
+    if target not in items:
+        return jsonify({'error': 'Invalid item'}), 400
+
     try:
-        graph=lp_optimize(target, amt, strat, weights, time_limit=time_limit, rel_gap=rel_gap)
-        if graph is None: return jsonify({'error':'No feasible solution'}),500
-        summary=calculate_summary_stats_v2(graph)
-        return jsonify(clean_nan_values({'production_graph':graph,'target_item':target,'target_item_name':items.get(target,{}).get('name',target),'amount_requested':amt,'optimization_strategy':strat,'weights_used':weights,'summary':summary,'lp':True}))
+        graph = lp_optimize(target, amt, strat, weights, time_limit=time_limit, rel_gap=rel_gap)
+        if graph is None:
+            return jsonify({'error': 'No feasible solution'}), 500
+        summary = calculate_summary_stats_v2(graph)
+        response = {
+            'production_graph': graph,
+            'target_item': target,
+            'target_item_name': items.get(target, {}).get('name', target),
+            'amount_requested': amt,
+            'optimization_strategy': strat,
+            'weights_used': weights,
+            'summary': summary,
+            'lp': True
+        }
+        return jsonify(clean_nan_values(response))
     except Exception as e:
-    return jsonify({'error':str(e)}),500
+        # Generic error response; avoids leaking internal stack traces
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
