@@ -395,8 +395,9 @@ def discover_all_dependencies(target_item, visited=None, max_depth=15):
             discover_all_dependencies(ing['item'], visited, max_depth - 1)
     return visited
 
-# Global debug flag for calculation verbosity
-DEBUG_CALC = os.environ.get('APP_DEBUG', '0') == '1'
+# # Global debug flag for calculation verbosity
+# DEBUG_CALC = os.environ.get('APP_DEBUG', '0') == '1'
+DEBUG_CALC = 1
 
 def _dbg(msg):
     if DEBUG_CALC:
@@ -1236,7 +1237,7 @@ def lp_optimize(target_item: str, amount_per_min: float, strategy: str, custom_w
                   weights['base_types'] * comps['uniq_base_types'] +
                   weights['machines'] * comps['machines'] +
                   weights['recipes'] * comps['uniq_recipes'])
-        solver = PULP_CBC_CMD(timeLimit=max(1, int(time_limit)), msg=False, gapRel=rel_gap if rel_gap > 0 else None)
+        solver = PULP_CBC_CMD(timeLimit=max(1, int(time_limit)), msg=True, gapRel=rel_gap if rel_gap > 0 else None)
         status = model.solve(solver)
         from pulp import LpStatus
         if DEBUG_CALC:
