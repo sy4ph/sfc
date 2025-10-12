@@ -10,6 +10,7 @@ try:
 except Exception:
     PULP_AVAILABLE = False
 # Solver configuration defaults
+#if you are reading this means im good at logging into github
 DEFAULT_SOLVER_TIME_LIMIT = 10  # seconds total budget
 DEFAULT_REL_GAP = 0.0  # 0 for exact; can relax for speed
 
