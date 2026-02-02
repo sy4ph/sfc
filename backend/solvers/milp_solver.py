@@ -6,6 +6,7 @@ Uses PuLP to find the optimal production chain based on a target item and amount
 import time
 from collections import defaultdict
 from typing import Dict, Any, List, Set, Tuple, Optional
+from ..utils.math_helpers import clean_nan_values, round_to_precision
 
 try:
     from pulp import (
@@ -117,13 +118,13 @@ class MILPSolver:
                 t = rec.get('time', 1.0) or 1.0
                 cycles = 60.0 / t
                 
-                # Calculate flow rates
-                inputs = {ing['item']: ing['amount'] * cycles * mv for ing in rec.get('ingredients', [])}
-                outputs = {p['item']: p['amount'] * cycles * mv for p in rec.get('products', [])}
+                # Calculate flow rates with precision rounding
+                inputs = {ing['item']: round_to_precision(ing['amount'] * cycles * mv) for ing in rec.get('ingredients', [])}
+                outputs = {p['item']: round_to_precision(p['amount'] * cycles * mv) for p in rec.get('products', [])}
                 
                 # Filter to only relevant items (optional but cleaner)
                 inputs = {k: v for k, v in inputs.items() if k in needed_items}
-                outputs = {k: v for k, v in outputs.items() if k in needed_items or k == target_item}
+                outputs = {k: v for k, v in outputs.items() if k in (set(needed_items) | {target_item})}
 
                 node_id = f"recipe_{rid}_{node_counter}"
                 node_counter += 1

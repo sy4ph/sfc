@@ -189,3 +189,19 @@ def get_recipe_machines(recipe_id: str) -> list:
     if recipe:
         return recipe.get('producedIn', [])
     return []
+
+
+def get_recipe_power_data(recipe_id: str) -> dict:
+    """
+    Get power consumption data for a recipe.
+    Returns dict with keys: 'min_power', 'max_power', 'is_variable'.
+    defaults to 0, 0, False if not found.
+    """
+    recipe = get_recipe(recipe_id)
+    if recipe:
+        return {
+            'min_power': recipe.get('minPower', 0),
+            'max_power': recipe.get('maxPower', 0),
+            'is_variable': recipe.get('isVariablePower', False)
+        }
+    return {'min_power': 0, 'max_power': 0, 'is_variable': False}

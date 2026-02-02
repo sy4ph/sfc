@@ -6,6 +6,8 @@ Calculates aggregate statistics and breakdown from a production graph.
 from collections import defaultdict
 from typing import Dict, Any
 from ..utils.math_helpers import round_to_precision
+from ..data.machines import get_machine_power_usage
+from ..data.recipes import get_recipe_power_data
 
 def calculate_summary_stats(graph: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -17,6 +19,7 @@ def calculate_summary_stats(graph: Dict[str, Any]) -> Dict[str, Any]:
     
     total_theoretical = 0.0
     total_actual = 0
+    total_power = 0.0
     base_amount = 0.0
     base_types = set()
     unique_recipes = set()
@@ -33,6 +36,14 @@ def calculate_summary_stats(graph: Dict[str, Any]) -> Dict[str, Any]:
                 base_amount += rate
                 base_types.add(item_id)
                 base_resources[item_id] = round_to_precision(base_resources.get(item_id, 0) + rate)
+            
+            # Base resources also use machines (Miners, Pumps)
+            machine_type = nd.get('machine_type', 'Unknown')
+            machine_count = nd.get('actual_machines', 0) or 0
+            if machine_count > 0:
+                machine_breakdown[machine_type] += machine_count
+                total_power += get_machine_power_usage(machine_type) * machine_count
+                
         elif not nd.get('is_surplus_node') and not nd.get('is_end_product_node'):
             recipe_node_count += 1
             total_theoretical += nd.get('machines_needed', 0) or 0
@@ -43,7 +54,23 @@ def calculate_summary_stats(graph: Dict[str, Any]) -> Dict[str, Any]:
                 unique_recipes.add(recipe_id)
                 
             machine_type = nd.get('machine_type', 'Unknown')
-            machine_breakdown[machine_type] += nd.get('actual_machines', 0) or 0
+            machine_count = nd.get('actual_machines', 0) or 0
+            
+            machine_breakdown[machine_type] += machine_count
+            
+            # Calculate power
+            power_usage = 0.0
+            power_data = get_recipe_power_data(recipe_id)
+            
+            if power_data['is_variable']:
+                # For variable power, we assume average usage: (min + max) / 2
+                avg_power_per_machine = (power_data['min_power'] + power_data['max_power']) / 2
+                power_usage = avg_power_per_machine * machine_count
+            else:
+                # Standard power usage based on machine type
+                power_usage = get_machine_power_usage(machine_type) * machine_count
+                
+            total_power += power_usage
             
     # Calculate overall machine efficiency
     avg_efficiency = f"{round((total_theoretical/total_actual)*100, 1)}%" if total_actual > 0 else '0%'
@@ -53,6 +80,8 @@ def calculate_summary_stats(graph: Dict[str, Any]) -> Dict[str, Any]:
         'total_machines': round_to_precision(total_theoretical),
         'total_actual_machines': total_actual,
         'machine_breakdown': dict(sorted(machine_breakdown.items())),
+        'total_power': round_to_precision(total_power) or 0.0,
+
         
         # Resource stats
         'base_resources': base_resources,

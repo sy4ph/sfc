@@ -8,9 +8,15 @@ from datetime import datetime
 health_bp = Blueprint('health', __name__)
 
 @health_bp.route('/api/health', methods=['GET'])
-def health():
-    """Check if the API is running and responsive."""
+def health_check():
+    """
+    Simple health check endpoint.
+    """
+    import backend.services.summary_service as s
+    import os
     return jsonify({
-        'status': 'healthy',
+        'status': 'ok',
+        'message': 'SFC Backend is running',
+        'source_path': os.path.abspath(s.__file__),
         'timestamp': datetime.utcnow().isoformat() + 'Z'
     })
