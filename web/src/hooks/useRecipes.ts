@@ -1,16 +1,14 @@
 'use client';
-
 import { useEffect, useMemo } from 'react';
 import { useRecipeStore } from '@/stores/recipeStore';
 import type { Recipe } from '@/types';
-
 interface UseRecipesOptions {
     filterText?: string;
     category?: 'standard' | 'alternate' | 'converted' | null;
     showActiveOnly?: boolean;
+    showAlternatesOnly?: boolean;
     machineFilter?: string | null;
 }
-
 export function useRecipes(options: UseRecipesOptions = {}) {
     const {
         recipes,
@@ -28,17 +26,14 @@ export function useRecipes(options: UseRecipesOptions = {}) {
         enableAllConverted,
         disableAllConverted,
     } = useRecipeStore();
-
     useEffect(() => {
         if (Object.keys(recipes).length === 0 && !isLoading) {
             fetchRecipes();
         }
     }, [recipes, isLoading, fetchRecipes]);
-
     // Get filtered and sorted recipes
     const filteredRecipes = useMemo(() => {
         let result = Object.values(recipes);
-
         // Filter by text
         if (options.filterText) {
             const searchLower = options.filterText.toLowerCase();
@@ -47,7 +42,6 @@ export function useRecipes(options: UseRecipesOptions = {}) {
                 r.id.toLowerCase().includes(searchLower)
             );
         }
-
         // Helper to check for "Converted" recipes (Ore A + Reanimated SAM -> Ore B)
         const isConvertedRecipe = (r: Recipe) => {
             const isConverter = r.producedIn.some(m => m.includes('Converter_C'));
@@ -55,7 +49,6 @@ export function useRecipes(options: UseRecipesOptions = {}) {
             const isFicsite = r.id.includes('FicsiteIngot');
             return isConverter && hasSam && !isFicsite;
         };
-
         // Category Filter
         if (options.category === 'alternate') {
             result = result.filter(r => r.alternate);
@@ -75,30 +68,29 @@ export function useRecipes(options: UseRecipesOptions = {}) {
                 true
             );
         }
-
         // Filter active only
         if (options.showActiveOnly) {
             result = result.filter((r) => activeRecipes[r.id]);
         }
-
+        // Filter alternates only
+        if (options.showAlternatesOnly) {
+            result = result.filter((r) => r.alternate);
+        }
         // Filter by machine
         if (options.machineFilter) {
             result = result.filter((r) =>
                 r.producedIn.some((m) => m.includes(options.machineFilter!))
             );
         }
-
         // Sort: standard recipes first, then by name
         return result.sort((a, b) => {
             if (options.category) return a.name.localeCompare(b.name);
-
             if (a.alternate !== b.alternate) {
                 return a.alternate ? 1 : -1;
             }
             return a.name.localeCompare(b.name);
         });
     }, [recipes, activeRecipes, options.filterText, options.category, options.showActiveOnly, options.machineFilter]);
-
     // Get unique machine types
     const machineTypes = useMemo(() => {
         const machines = new Set<string>();
@@ -109,7 +101,6 @@ export function useRecipes(options: UseRecipesOptions = {}) {
         }
         return Array.from(machines).sort();
     }, [recipes]);
-
     // Stats
     const stats = useMemo(() => {
         const total = Object.keys(recipes).length;
@@ -118,10 +109,8 @@ export function useRecipes(options: UseRecipesOptions = {}) {
         const activeAlternates = Object.entries(recipes)
             .filter(([id, r]) => r.alternate && activeRecipes[id])
             .length;
-
         return { total, active, alternates, activeAlternates };
     }, [recipes, activeRecipes]);
-
     return {
         recipes: filteredRecipes,
         allRecipes: recipes,
