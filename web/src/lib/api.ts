@@ -6,7 +6,7 @@ import type {
 } from '@/types';
 import { MOCK_ITEMS, MOCK_RECIPES, MOCK_CALCULATION } from './mockData';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 // Enable mock data if explicitly set or if in development and API is unreachable (we'll manual toggle for now)
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 

@@ -1,10 +1,9 @@
 services:
-  # Backend Service
   - type: web
-    name: satisfactory-planner-api
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers=3 --timeout=120
+    name: satisfactory-planner
+    env: docker
+    dockerContext: .
+    dockerfilePath: Dockerfile
     autoDeploy: true
     healthCheckPath: /api/health
     envVars:
@@ -12,20 +11,5 @@ services:
         value: production
       - key: PYTHONUNBUFFERED
         value: "1"
-
-  # Frontend Service
-  - type: web
-    name: satisfactory-planner-web
-    env: node
-    rootDir: web
-    buildCommand: npm install && npm run build
-    startCommand: npm start
-    autoDeploy: true
-    envVars:
       - key: NODE_ENV
         value: production
-      - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: satisfactory-planner-api
-          property: url
