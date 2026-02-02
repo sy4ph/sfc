@@ -11,6 +11,7 @@ from .base_resources import (
     BASE_RESOURCE_MACHINES,
     BASE_RESOURCES
 )
+from ..config import SPECIAL_RESOURCE_RECIPES
 from .items import (
     get_item,
     get_item_name,
@@ -41,6 +42,7 @@ __all__ = [
     # Base resources
     'is_base_resource', 'get_extraction_rate', 'get_extraction_machine',
     'get_all_base_resources', 'BASE_RESOURCE_RATES', 'BASE_RESOURCE_MACHINES', 'BASE_RESOURCES',
+    'SPECIAL_RESOURCE_RECIPES',
     # Items
     'get_item', 'get_item_name', 'item_exists', 'get_all_item_ids',
     'get_item_description', 'get_item_stack_size', 'get_item_sink_points',
