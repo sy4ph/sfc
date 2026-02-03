@@ -33,6 +33,7 @@ export const useRecipeStore = create<RecipeStore>()(
             error: null,
 
             fetchRecipes: async () => {
+                if (get().isLoading) return;
                 set({ isLoading: true, error: null });
                 try {
                     const recipes = await api.getRecipes();

@@ -10,7 +10,7 @@ export function useItems() {
         if (Object.keys(items).length === 0 && !isLoading) {
             fetchItems();
         }
-    }, [items, isLoading, fetchItems]);
+    }, [fetchItems]);
 
     return {
         items,

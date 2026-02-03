@@ -30,7 +30,7 @@ export function useRecipes(options: UseRecipesOptions = {}) {
         if (Object.keys(recipes).length === 0 && !isLoading) {
             fetchRecipes();
         }
-    }, [recipes, isLoading, fetchRecipes]);
+    }, [fetchRecipes]);
     // Get filtered and sorted recipes
     const filteredRecipes = useMemo(() => {
         let result = Object.values(recipes);

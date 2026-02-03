@@ -21,6 +21,7 @@ export const useItemStore = create<ItemStore>()((set, get) => ({
     error: null,
 
     fetchItems: async () => {
+        if (get().isLoading) return;
         set({ isLoading: true, error: null });
         try {
             const items = await api.getItems();
