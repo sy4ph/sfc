@@ -11,9 +11,7 @@ export function getItemIconPath(itemId: string, size: 64 | 256 = 64): string {
     if (name === 'desc-copperore-c') name = 'desc-orecopper-c';
     if (name === 'desc-bauxite-c') name = 'desc-orebauxite-c';
     if (name === 'desc-uraniumore-c') name = 'desc-oreuranium-c';
-    if (name === 'desc-stone-c') name = 'desc-orestone-c'; // Limestone is OreStone
-    if (name === 'desc-rawquartz-c') name = 'desc-orequartz-c';
-    if (name === 'desc-coal-c') name = 'desc-orecoal-c';
+    // Stone, Quartz, and Coal do NOT have 'ore' prefix in files
 
     return `/images/items/${name}_${size}.png`;
 }

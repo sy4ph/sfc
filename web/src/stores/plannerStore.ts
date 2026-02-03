@@ -22,20 +22,32 @@ export interface PlannerNodeData extends Record<string, unknown> {
     outputRate?: number; // Base rate for resources
     inputs?: Record<string, number>; // itemId -> actual incoming rate
     outputs?: Record<string, number>; // itemId -> actual outgoing rate
+    theoreticalOutputs?: Record<string, number>; // Potential at current clock speed
     bottlenecks?: string[]; // itemIds that are under-supplied
 }
 
 export type PlannerNode = Node<PlannerNodeData>;
 
+export interface PlannerEdgeData extends Record<string, unknown> {
+    manualFlow?: number;
+    actualFlow?: number;
+}
+
+export type PlannerEdge = Edge<PlannerEdgeData>;
+
 interface PlannerState {
     nodes: PlannerNode[];
-    edges: Edge[];
+    edges: PlannerEdge[];
+    isSidebarVisible: boolean;
+    toggleSidebar: () => void;
     onNodesChange: (changes: NodeChange<PlannerNode>[], recipes: Record<string, any>) => void;
     onEdgesChange: (changes: EdgeChange[], recipes: Record<string, any>) => void;
     onConnect: (connection: Connection, recipes: Record<string, any>) => void;
     addNode: (node: PlannerNode, recipes: Record<string, any>) => void;
     deleteNode: (nodeId: string, recipes: Record<string, any>) => void;
+    deleteEdge: (edgeId: string, recipes: Record<string, any>) => void;
     updateNodeData: (nodeId: string, data: Partial<PlannerNodeData>, recipes: Record<string, any>) => void;
+    updateEdgeData: (edgeId: string, data: Partial<PlannerEdgeData>, recipes: Record<string, any>) => void;
     clearPlanner: () => void;
     calculateFlows: (recipes: Record<string, any>) => void;
 }
@@ -45,50 +57,93 @@ export const usePlannerStore = create<PlannerState>()(
         (set, get) => ({
             nodes: [],
             edges: [],
+            isSidebarVisible: true,
+            toggleSidebar: () => set((state) => ({ isSidebarVisible: !state.isSidebarVisible })),
 
             calculateFlows: (recipes) => {
                 const { nodes, edges } = get();
-                if (nodes.length === 0) {
-                    // If no nodes, clear all flow data
-                    set({ nodes: nodes.map(n => ({ ...n, data: { ...n.data, inputs: {}, outputs: {}, bottlenecks: [] } })) });
-                    return;
-                }
+                if (nodes.length === 0) return;
 
-                const newNodes = [...nodes];
-                const nodeMap = new Map(newNodes.map(n => [n.id, { ...n, data: { ...n.data, inputs: {}, outputs: {}, bottlenecks: [] } }]));
+                const nodeMap = new Map<string, PlannerNode>();
+                nodes.forEach(n => {
+                    nodeMap.set(n.id, {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            inputs: {} as Record<string, number>,
+                            outputs: {} as Record<string, number>,
+                            theoreticalOutputs: {} as Record<string, number>,
+                            bottlenecks: [] as string[]
+                        }
+                    });
+                });
 
-                // 1. Initialize Resources
+                const edgeMap = new Map<string, PlannerEdge>(edges.map(e => [e.id, { ...e, data: { ...e.data, actualFlow: 0 } }]));
+
+                // 1. Initialize Resources (Always output at full capacity/yield)
                 nodeMap.forEach(node => {
                     if (node.data.isResource && node.data.resourceId) {
                         const rate = (node.data.outputRate || 60) * (node.data.efficiency / 100) * (node.data.machineCount || 1);
-                        node.data.outputs = { [node.data.resourceId]: rate };
+                        const outputs = node.data.outputs as Record<string, number>;
+                        const theoreticalOutputs = node.data.theoreticalOutputs as Record<string, number>;
+                        outputs[node.data.resourceId] = rate;
+                        theoreticalOutputs[node.data.resourceId] = rate;
                     }
                 });
 
-                // 2. Propagate flows (simplistic multi-pass or topological sort)
-                // For a small graph, multiple passes until stable or max 10 passes is fine for a POC
-                for (let i = 0; i < 10; i++) {
+                // 2. Propagate flows (approximate using passes for convergence)
+                for (let i = 0; i < 20; i++) {
                     let changed = false;
 
-                    // Reset inputs for each pass to re-sum from edges
+                    // CRITICAL FIX: Reset inputs at the start of each pass to prevent accumulation
                     nodeMap.forEach(node => {
-                        if (!node.data.isResource) node.data.inputs = {};
+                        if (!node.data.isResource) {
+                            node.data.inputs = {};
+                        }
                     });
 
                     // Aggregate inputs from edges
-                    edges.forEach(edge => {
+                    edgeMap.forEach(edge => {
                         const source = nodeMap.get(edge.source);
                         const target = nodeMap.get(edge.target);
                         if (source && target && edge.sourceHandle) {
-                            const itemId = edge.sourceHandle; // We'll use itemId as handleId
-                            const sourceOutput = source.data.outputs?.[itemId] || 0;
+                            const itemId = edge.sourceHandle;
+                            const sourceOutputs = (source.data.outputs || {}) as Record<string, number>;
+                            const sourceOutput = sourceOutputs[itemId] || 0;
 
-                            // Multi-connect split logic: if source port has multiple edges, split flow
-                            const outgoingEdges = edges.filter(e => e.source === edge.source && e.sourceHandle === edge.sourceHandle);
-                            const splitFlow = outgoingEdges.length > 0 ? sourceOutput / outgoingEdges.length : sourceOutput;
+                            // Multi-connect split logic: respect manual overrides
+                            const outgoingEdgesFromPort = Array.from(edgeMap.values()).filter(e => e.source === edge.source && e.sourceHandle === edge.sourceHandle);
+                            const manualOverrides = outgoingEdgesFromPort.filter(e => e.data?.manualFlow !== undefined);
+                            const automaticEdges = outgoingEdgesFromPort.filter(e => e.data?.manualFlow === undefined);
 
-                            target.data.inputs = target.data.inputs || {};
-                            target.data.inputs[itemId] = (target.data.inputs[itemId] || 0) + splitFlow;
+                            let manualTotal = 0;
+                            manualOverrides.forEach(e => manualTotal += (e.data?.manualFlow || 0));
+
+                            let splitFlow = 0;
+                            if (edge.data?.manualFlow !== undefined) {
+                                // Locked flow cannot exceed total supply
+                                splitFlow = Math.min(edge.data.manualFlow, sourceOutput);
+                            } else {
+                                const remainingFlow = Math.max(0, sourceOutput - manualTotal);
+                                splitFlow = automaticEdges.length > 0 ? remainingFlow / automaticEdges.length : 0;
+                            }
+
+                            // NEW: Limit by target's maximum input capacity for this item
+                            if (target.data.recipeId && recipes[target.data.recipeId]) {
+                                const recipe = recipes[target.data.recipeId];
+                                const ingredient = recipe.ingredients.find((ing: any) => ing.item === itemId);
+                                if (ingredient) {
+                                    const maxIntake = (ingredient.amount / recipe.time) * 60 * (target.data.efficiency / 100) * (target.data.machineCount || 1);
+                                    // How much has target already received from other edges?
+                                    const alreadyReceived = ((target.data.inputs || {}) as Record<string, number>)[itemId] || 0;
+                                    const remainingCapacity = Math.max(0, maxIntake - alreadyReceived);
+                                    splitFlow = Math.min(splitFlow, remainingCapacity);
+                                }
+                            }
+
+                            edge.data = { ...edge.data, actualFlow: splitFlow };
+                            const targetInputs = (target.data.inputs || {}) as Record<string, number>;
+                            targetInputs[itemId] = (targetInputs[itemId] || 0) + splitFlow;
                         }
                     });
 
@@ -99,30 +154,37 @@ export const usePlannerStore = create<PlannerState>()(
                         const recipe = recipes[node.data.recipeId];
                         if (!recipe) return;
 
-                        // Calculate throughput % based on inputs
                         let throughput = 1.0;
                         const bottlenecks: string[] = [];
+                        const theoreticalOutputs: Record<string, number> = {};
 
                         recipe.ingredients.forEach((ing: any) => {
                             const required = (ing.amount / recipe.time) * 60 * (node.data.efficiency / 100) * (node.data.machineCount || 1);
-                            const available = node.data.inputs?.[ing.item] || 0;
+                            const nodeInputs = (node.data.inputs || {}) as Record<string, number>;
+                            const available = nodeInputs[ing.item] || 0;
 
-                            if (required > 0 && available < required - 0.01) { // Check required > 0 to avoid division by zero
+                            if (required > 0) {
                                 const factor = available / required;
-                                if (factor < throughput) throughput = factor;
-                                bottlenecks.push(ing.item);
+                                if (factor < throughput - 0.0001) { // Small epsilon for float stable
+                                    throughput = factor;
+                                    bottlenecks.push(ing.item);
+                                }
                             }
                         });
 
+                        // Important: Throughput cannot exceed 1.0 (machine capacity limit)
+                        throughput = Math.min(1.0, throughput);
+
                         node.data.bottlenecks = bottlenecks;
 
-                        // Calculate products
                         const newOutputs: Record<string, number> = {};
                         recipe.products.forEach((prod: any) => {
-                            const baseRate = (prod.amount / recipe.time) * 60;
-                            newOutputs[prod.item] = baseRate * (node.data.efficiency / 100) * (node.data.machineCount || 1) * throughput;
+                            const baseRate = (prod.amount / recipe.time) * 60 * (node.data.efficiency / 100) * (node.data.machineCount || 1);
+                            theoreticalOutputs[prod.item] = baseRate;
+                            newOutputs[prod.item] = baseRate * throughput;
                         });
 
+                        node.data.theoreticalOutputs = theoreticalOutputs;
                         const oldOutputsJSON = JSON.stringify(node.data.outputs);
                         node.data.outputs = newOutputs;
                         if (JSON.stringify(newOutputs) !== oldOutputsJSON) changed = true;
@@ -131,34 +193,37 @@ export const usePlannerStore = create<PlannerState>()(
                     if (!changed) break;
                 }
 
-                set({ nodes: Array.from(nodeMap.values()) });
+                set({
+                    nodes: Array.from(nodeMap.values()),
+                    edges: Array.from(edgeMap.values())
+                });
             },
 
             onNodesChange: (changes, recipes) => {
-                set((state) => ({
-                    nodes: applyNodeChanges(changes, state.nodes),
-                }));
+                set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) }));
                 get().calculateFlows(recipes);
             },
 
             onEdgesChange: (changes, recipes) => {
-                set((state) => ({
-                    edges: applyEdgeChanges(changes, state.edges),
-                }));
+                set((state) => ({ edges: applyEdgeChanges(changes, state.edges) as PlannerEdge[] }));
                 get().calculateFlows(recipes);
             },
 
             onConnect: (connection, recipes) => {
                 set((state) => ({
-                    edges: addEdge({ ...connection, animated: true, style: { stroke: '#FA9549' } }, state.edges),
+                    edges: addEdge({
+                        ...connection,
+                        type: 'customEdge',
+                        animated: true,
+                        style: { stroke: '#FA9549' },
+                        data: { actualFlow: 0 }
+                    }, state.edges) as PlannerEdge[],
                 }));
                 get().calculateFlows(recipes);
             },
 
             addNode: (node, recipes) => {
-                set((state) => ({
-                    nodes: [...state.nodes, node],
-                }));
+                set((state) => ({ nodes: [...state.nodes, node] }));
                 get().calculateFlows(recipes);
             },
 
@@ -170,6 +235,13 @@ export const usePlannerStore = create<PlannerState>()(
                 get().calculateFlows(recipes);
             },
 
+            deleteEdge: (edgeId, recipes) => {
+                set((state) => ({
+                    edges: state.edges.filter((edge) => edge.id !== edgeId),
+                }));
+                get().calculateFlows(recipes);
+            },
+
             updateNodeData: (nodeId, data, recipes) => {
                 set((state) => ({
                     nodes: state.nodes.map((node) => {
@@ -177,6 +249,18 @@ export const usePlannerStore = create<PlannerState>()(
                             return { ...node, data: { ...node.data, ...data } };
                         }
                         return node;
+                    }),
+                }));
+                get().calculateFlows(recipes);
+            },
+
+            updateEdgeData: (edgeId, data, recipes) => {
+                set((state) => ({
+                    edges: state.edges.map((edge) => {
+                        if (edge.id === edgeId) {
+                            return { ...edge, data: { ...edge.data, ...data } };
+                        }
+                        return edge;
                     }),
                 }));
                 get().calculateFlows(recipes);

@@ -33,7 +33,7 @@ export function Header({ onMenuToggle, viewMode, onViewModeChange }: HeaderProps
                     <NavButton
                         active={viewMode === 'planner'}
                         onClick={() => onViewModeChange('planner')}
-                        label="Planner"
+                        label="Calculator"
                         icon={<PlannerIcon />}
                     />
                     <NavButton
