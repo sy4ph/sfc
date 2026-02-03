@@ -4,7 +4,8 @@
 echo "Starting backend on port 5000..."
 # Use factory function syntax: module:create_app()
 # Increased timeout to 300s for complex calculations
-gunicorn 'backend.app:create_app()' --bind 0.0.0.0:5000 --workers=2 --timeout=300 &
+# Added logging flags to show requests in Render logs
+gunicorn 'backend.app:create_app()' --bind 0.0.0.0:5000 --workers=2 --timeout=300 --access-logfile - --error-logfile - &
 
 # Start the Next.js frontend
 echo "Starting frontend on port ${PORT:-10000}..."
