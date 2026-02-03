@@ -4,8 +4,8 @@
 import os
 
 # Solver configuration defaults
-DEFAULT_SOLVER_TIME_LIMIT = 60  # seconds total budget
-DEFAULT_REL_GAP = 0.0  # 0 for exact; can relax for speed
+DEFAULT_SOLVER_TIME_LIMIT = 20  # seconds total budget for optimization
+DEFAULT_REL_GAP = 0.02          # 2% gap allows faster exit on complex recipes
 
 # Precision settings
 PRECISION_DIGITS = 4
