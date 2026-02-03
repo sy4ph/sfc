@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { Header, Sidebar } from '@/components/layout';
-import { PlannerPanel } from '@/components/planner';
+import { PlannerPanel, FactoryPlanner } from '@/components/planner';
 import { RecipeBook } from '@/components/recipes';
 import { ProductionGraph, ProductionSummary } from '@/components/graph';
 import { ShortcutsModal } from '@/components/ui';
 import { useCalculation, useKeyboardShortcuts } from '@/hooks';
 
-type ViewMode = 'planner' | 'recipes';
+type ViewMode = 'planner' | 'recipes' | 'factory';
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>('planner');
@@ -20,8 +20,12 @@ export default function Home() {
   useKeyboardShortcuts({
     onCalculate: calculate,
     onSwitchTab: () => {
-      // Toggle between main views instead of sidebar tabs
-      setViewMode(prev => prev === 'planner' ? 'recipes' : 'planner');
+      // Rotation between main views
+      setViewMode(prev => {
+        if (prev === 'planner') return 'recipes';
+        if (prev === 'recipes') return 'factory';
+        return 'planner';
+      });
     },
     onClose: () => {
       setIsSidebarOpen(false);
@@ -53,13 +57,17 @@ export default function Home() {
           </Sidebar>
         )}
 
-        <main className={`flex-1 p-4 lg:p-6 space-y-6 overflow-y-auto h-[calc(100vh-64px)] scrollbar-hide`}>
+        <main className={`flex-1 ${viewMode === 'factory' ? '' : 'p-4 lg:p-6 space-y-6 overflow-y-auto h-[calc(100vh-64px)] scrollbar-hide'}`}>
           {viewMode === 'recipes' ? (
-            <RecipeBook />
+            <div className="animate-fade-in">
+              <RecipeBook />
+            </div>
+          ) : viewMode === 'factory' ? (
+            <FactoryPlanner />
           ) : (
-            <>
+            <div className="animate-fade-in space-y-6">
               {result ? (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <>
                   {/* Summary */}
                   <ProductionSummary
                     summary={result.summary}
@@ -83,10 +91,10 @@ export default function Home() {
                       <ProductionGraph graph={result.production_graph} />
                     </div>
                   </div>
-                </div>
+                </>
               ) : (
                 /* Empty State */
-                <div className="h-full flex items-center justify-center p-8">
+                <div className="h-[calc(100vh-200px)] flex items-center justify-center p-8">
                   <div className="relative max-w-lg w-full">
                     <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-accent/20 rounded-3xl blur-2xl opacity-50" />
 
@@ -118,22 +126,11 @@ export default function Home() {
                           Select a production target in the sidebar to generate your ideal factory layout using our MILP-driven optimization engine.
                         </p>
                       </div>
-
-                      <div className="flex items-center justify-center gap-4 text-[10px] font-bold uppercase tracking-widest text-text-dim">
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-higher rounded-full border border-border/50">
-                          <kbd className="text-primary font-mono font-black text-xs">C</kbd>
-                          <span>Calculate</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-higher rounded-full border border-border/50">
-                          <kbd className="text-primary font-mono font-black text-xs">Tab</kbd>
-                          <span>Switch Tab</span>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </main>
       </div>

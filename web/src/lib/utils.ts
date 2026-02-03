@@ -4,7 +4,17 @@
  */
 export function getItemIconPath(itemId: string, size: 64 | 256 = 64): string {
     if (!itemId) return '/images/placeholder.png';
-    const name = itemId.toLowerCase().replace(/_/g, '-');
+    let name = itemId.toLowerCase().replace(/_/g, '-');
+
+    // Fix specific resource naming mismatches
+    if (name === 'desc-ironore-c') name = 'desc-oreiron-c';
+    if (name === 'desc-copperore-c') name = 'desc-orecopper-c';
+    if (name === 'desc-bauxite-c') name = 'desc-orebauxite-c';
+    if (name === 'desc-uraniumore-c') name = 'desc-oreuranium-c';
+    if (name === 'desc-stone-c') name = 'desc-orestone-c'; // Limestone is OreStone
+    if (name === 'desc-rawquartz-c') name = 'desc-orequartz-c';
+    if (name === 'desc-coal-c') name = 'desc-orecoal-c';
+
     return `/images/items/${name}_${size}.png`;
 }
 
