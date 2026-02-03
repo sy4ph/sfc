@@ -1,24 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Header, Sidebar, TabPanel } from '@/components/layout';
+import { Header, Sidebar } from '@/components/layout';
 import { PlannerPanel } from '@/components/planner';
-import { RecipesPanel, RecipeBook } from '@/components/recipes';
+import { RecipeBook } from '@/components/recipes';
 import { ProductionGraph, ProductionSummary } from '@/components/graph';
 import { ShortcutsModal } from '@/components/ui';
 import { useCalculation, useKeyboardShortcuts } from '@/hooks';
 
-type SidebarTabId = 'planner' | 'recipes';
 type ViewMode = 'planner' | 'recipes';
-
-const SIDEBAR_TABS = [
-  { id: 'planner', label: 'Items' },
-  { id: 'recipes', label: 'Recipes' },
-];
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>('planner');
-  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>('planner');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
@@ -26,13 +19,9 @@ export default function Home() {
 
   useKeyboardShortcuts({
     onCalculate: calculate,
-    onSwitchTab: (index) => {
-      if (typeof index === 'number') {
-        const targetTab = SIDEBAR_TABS[index].id as SidebarTabId;
-        setSidebarTab(targetTab);
-      } else {
-        setSidebarTab(prev => prev === 'planner' ? 'recipes' : 'planner');
-      }
+    onSwitchTab: () => {
+      // Toggle between main views instead of sidebar tabs
+      setViewMode(prev => prev === 'planner' ? 'recipes' : 'planner');
     },
     onClose: () => {
       setIsSidebarOpen(false);
@@ -58,17 +47,8 @@ export default function Home() {
         {/* Sidebar - Only show in Planner view */}
         {viewMode === 'planner' && (
           <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}>
-            <TabPanel
-              tabs={SIDEBAR_TABS}
-              activeTab={sidebarTab}
-              onChange={(id) => {
-                setSidebarTab(id as SidebarTabId);
-                setIsSidebarOpen(false); // Close on mobile after selection
-              }}
-            />
-
             <div className="animate-fade-in">
-              {sidebarTab === 'planner' ? <PlannerPanel /> : <RecipesPanel />}
+              <PlannerPanel />
             </div>
           </Sidebar>
         )}

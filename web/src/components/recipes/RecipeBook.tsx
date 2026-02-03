@@ -63,7 +63,7 @@ export function RecipeBook() {
     return (
         <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Control Bar */}
-            <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-xl space-y-6">
+            <div className="relative z-20 bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-xl space-y-6">
                 <div className="flex flex-col md:flex-row gap-4 items-end">
                     <div className="flex-1 space-y-2 w-full">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-text-dim px-1">Search Recipes</label>
