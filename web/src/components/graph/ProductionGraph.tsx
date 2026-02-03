@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { ProductionGraph as GraphType, RecipeNode } from '@/types';
+import { getItemIconPath } from '@/lib/utils';
 import { GraphControls } from './GraphControls';
 import { GraphTooltip } from './GraphTooltip';
 import { GraphLegend } from './GraphLegend';
@@ -31,45 +32,44 @@ export function ProductionGraph({ graph, onNodeClick }: ProductionGraphProps) {
             const FICSIT_WHITE = '#EFEFEF';
 
             let color = {
-                background: '#2A2E35', // Dark background
+                background: '#2A2E35',
                 border: FICSIT_ORANGE,
                 highlight: { background: '#2A2E35', border: '#FFF' },
             };
-            let shape = 'box';
             const borderWidth = 2;
-            let font = { color: '#EFEFEF', size: 14, face: 'Inter, monospace' };
+            let font = { color: FICSIT_ORANGE, size: 14, face: 'Inter, monospace', bold: true };
 
             if (node.is_base_resource) {
-                // Raw Resources: Circle, No Border (or different border)
-                color = {
-                    background: '#2A2E35',
-                    border: '#4ADE80', // Green
-                    highlight: { background: '#2A2E35', border: '#FFF' },
-                };
-                shape = 'ellipse';
-                font.color = '#4ADE80';
+                color.border = '#4ADE80';
+                font.color = '#4ADE80'; // Green for extraction
+            } else if (node.is_surplus_node) {
+                color.border = '#A855F7';
+                font.color = '#A855F7'; // Purple for surplus
             } else if (node.is_alternate) {
-                // Alternate: Dashed border logic (handled by vis-network shapeProperties usually, but here we stick to color)
-                color.border = '#F59E0B'; // Amber
+                color.border = '#F59E0B';
+                font.color = '#F59E0B'; // Yellow for alternates
             } else if (node.is_end_product_node) {
-                // End Product: Highlighted
                 color = {
                     background: FICSIT_ORANGE,
                     border: FICSIT_ORANGE,
                     highlight: { background: FICSIT_ORANGE, border: '#FFF' },
                 };
-                font.color = '#1A1D21'; // Dark text on orange
+                font.color = '#FA9549'; // Orange for end product (but bold)
                 font.size = 16;
+            } else {
+                // Standard recipes
+                font.color = '#FA9549'; // Orange for standard
             }
 
             return {
                 id: node.node_id,
                 label: formatNodeLabel(node),
+                image: getItemIconPath(node.item_id || 'desc_ironingot_c', 256),
+                shape: 'image',
                 color: color,
-                shape,
                 borderWidth,
                 font: font,
-                margin: 12,
+                size: 30, // Adjust image size
                 shadow: { enabled: true, color: 'rgba(0,0,0,0.5)', size: 10, x: 5, y: 5 },
             };
         });

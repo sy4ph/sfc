@@ -3,10 +3,10 @@
 export function GraphLegend() {
     return (
         <div className="absolute bottom-4 left-4 bg-surface/80 backdrop-blur-md border border-border rounded-xl p-2.5 flex flex-col gap-1.5 shadow-lg z-10">
-            <LegendItem color="#6366f1" label="Standard Recipe" />
-            <LegendItem color="#f59e0b" label="Alternate Recipe" />
-            <LegendItem color="#10b981" label="Base Resource" shape="rounded-full" />
-            <LegendItem color="#f97316" label="Surplus Output" shape="rounded-full" />
+            <LegendItem color="#FA9549" label="Standard Recipe" />
+            <LegendItem color="#F59E0B" label="Alternate Recipe" />
+            <LegendItem color="#4ADE80" label="Base Resource" shape="rounded-full" />
+            <LegendItem color="#A855F7" label="Surplus Output" shape="rounded-full" />
         </div>
     );
 }

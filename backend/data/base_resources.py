@@ -23,20 +23,20 @@ BASE_RESOURCE_RATES = {
 
 # Mapping of base resources to their extraction machines
 BASE_RESOURCE_MACHINES = {
-    'Desc_OreIron_C': 'Miner',
-    'Desc_OreCopper_C': 'Miner',
-    'Desc_Stone_C': 'Miner',
-    'Desc_Coal_C': 'Miner',
-    'Desc_OreBauxite_C': 'Miner',
-    'Desc_OreGold_C': 'Miner',
-    'Desc_RawQuartz_C': 'Miner',
-    'Desc_Sulfur_C': 'Miner',
-    'Desc_OreUranium_C': 'Miner',
-    'Desc_SAM_C': 'Miner',
-    'Desc_LiquidOil_C': 'Oil Extractor',
-    'Desc_Water_C': 'Water Extractor',
-    'Desc_NitrogenGas_C': 'Resource Well Extractor',
-    'Desc_CrystalShard_C': 'Miner',
+    'Desc_OreIron_C': 'Desc_MinerMk1_C',
+    'Desc_OreCopper_C': 'Desc_MinerMk1_C',
+    'Desc_Stone_C': 'Desc_MinerMk1_C',
+    'Desc_Coal_C': 'Desc_MinerMk1_C',
+    'Desc_OreBauxite_C': 'Desc_MinerMk1_C',
+    'Desc_OreGold_C': 'Desc_MinerMk1_C',
+    'Desc_RawQuartz_C': 'Desc_MinerMk1_C',
+    'Desc_Sulfur_C': 'Desc_MinerMk1_C',
+    'Desc_OreUranium_C': 'Desc_MinerMk1_C',
+    'Desc_SAM_C': 'Desc_MinerMk1_C',
+    'Desc_LiquidOil_C': 'Desc_OilPump_C',
+    'Desc_Water_C': 'Desc_WaterPump_C',
+    'Desc_NitrogenGas_C': 'Desc_FrackingSmasher_C',
+    'Desc_CrystalShard_C': 'Desc_MinerMk1_C',
 }
 
 # Set of all base resource IDs for quick lookup

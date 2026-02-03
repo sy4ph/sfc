@@ -20,6 +20,7 @@ def build_recipe_node(node_id: str, recipe_id: str, recipe_data: Dict[str, Any],
     return {
         'node_id': node_id,
         'recipe_id': recipe_id,
+        'item_id': list(outputs.keys())[0] if outputs else 'unknown',
         'recipe_name': recipe_data.get('name', recipe_id),
         'machine_type': machine_type,
         'machines_needed': round_to_precision(machines_needed),
@@ -46,6 +47,7 @@ def build_base_resource_node(node_id: str, item_id: str, rate: float) -> Dict[st
     return {
         'node_id': node_id,
         'recipe_id': f'extract_{item_id}',
+        'item_id': item_id,
         'recipe_name': f'Extract {get_item_name(item_id)}',
         'machine_type': machine_type_class,
         'machines_needed': round_to_precision(theoretical_machines),
@@ -62,6 +64,7 @@ def build_end_product_node(node_id: str, item_id: str, amount: float) -> Dict[st
     return {
         'node_id': node_id,
         'recipe_id': f'end_product_{item_id}',
+        'item_id': item_id,
         'recipe_name': f'Target: {get_item_name(item_id)}',
         'machine_type': 'End Product',
         'machines_needed': 0,
@@ -77,6 +80,7 @@ def build_surplus_node(node_id: str, item_id: str, amount: float) -> Dict[str, A
     return {
         'node_id': node_id,
         'recipe_id': f'surplus_{item_id}',
+        'item_id': item_id,
         'recipe_name': f'Surplus: {get_item_name(item_id)}',
         'machine_type': 'Surplus Output',
         'machines_needed': 0,

@@ -52,6 +52,7 @@ export interface ProductionGraph {
 export interface RecipeNode {
     node_id: string;
     recipe_id: string;
+    item_id: string;
     recipe_name: string;
     machine_type: string;
     machines_needed: number;

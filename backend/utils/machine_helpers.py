@@ -64,17 +64,12 @@ def calculate_machine_info(theoretical_machines, machine_type="machines"):
     partial_machine_percent = (theoretical_machines - full_machines) * 100
     
     # Logic for display text
-    if theoretical_machines <= 1.0:
-        if partial_machine_percent > 0:
-            display_text = f"1 {machine_type} ({partial_machine_percent:.1f}%)"
-        else:
-            display_text = f"1 {machine_type}"
+    if partial_machine_percent < 0.1: # Threshold to avoid showing 0.0% due to float precision
+        display_text = f"{full_machines} {machine_type}"
+    elif theoretical_machines < 1.0:
+        display_text = f"1 {machine_type} ({partial_machine_percent:.1f}%)"
     else:
-        if partial_machine_percent > 0.1: # Threshold to avoid showing 0.0% due to float precision
-            display_text = f"{full_machines} {machine_type} + 1 {machine_type} ({partial_machine_percent:.1f}%)"
-        else:
-            display_text = f"{full_machines} {machine_type}"
-    
+        display_text = f"{full_machines} + 1 {machine_type} ({partial_machine_percent:.1f}%)"
     actual_machines = math.ceil(theoretical_machines)
     # Overall efficiency is theoretical / actual capacity
     overall_efficiency = round((theoretical_machines / actual_machines) * 100, 1) if actual_machines > 0 else 0

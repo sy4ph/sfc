@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { Toggle } from '@/components/ui';
 import type { Recipe } from '@/types';
 import { useItems } from '@/hooks';
-import { getItemIconPath } from '@/lib/utils';
+import { getItemIconPath, getMachineName } from '@/lib/utils';
 
 interface RecipeCardProps {
     recipe: Recipe;
@@ -93,21 +93,4 @@ export function RecipeCard({ recipe, isActive, onToggle }: RecipeCardProps) {
             </div>
         </div>
     );
-}
-
-function getMachineName(machineId: string): string {
-    const names: Record<string, string> = {
-        Desc_SmelterMk1_C: 'Smelter',
-        Desc_ConstructorMk1_C: 'Constructor',
-        Desc_AssemblerMk1_C: 'Assembler',
-        Desc_ManufacturerMk1_C: 'Manufacturer',
-        Desc_FoundryMk1_C: 'Foundry',
-        Desc_OilRefinery_C: 'Refinery',
-        Desc_Packager_C: 'Packager',
-        Desc_Blender_C: 'Blender',
-        Desc_HadronCollider_C: 'Particle Accelerator',
-        Desc_QuantumEncoder_C: 'Quantum Encoder',
-        Desc_Converter_C: 'Converter',
-    };
-    return names[machineId] || machineId.replace(/^Desc_/, '').replace(/_C$/, '').replace(/Mk1/, '');
 }

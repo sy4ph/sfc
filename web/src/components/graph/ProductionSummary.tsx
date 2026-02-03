@@ -2,7 +2,7 @@
 
 import type { ProductionSummary as SummaryType } from '@/types';
 import { useItems } from '@/hooks';
-import { getItemIconPath, formatNumber } from '@/lib/utils';
+import { getItemIconPath, formatNumber, getMachineName } from '@/lib/utils';
 import Image from 'next/image';
 
 interface ProductionSummaryProps {
@@ -98,7 +98,7 @@ export function ProductionSummary({
                                         </div>
                                         <div>
                                             <div className="text-sm font-medium text-text">
-                                                {getItemName(machine) || machine.replace('Desc_', '').replace('_C', '')}
+                                                {getMachineName(machine)}
                                             </div>
                                             <div className="text-[10px] text-text-dim uppercase tracking-tight font-medium">
                                                 Standard Efficiency

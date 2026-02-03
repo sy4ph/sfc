@@ -94,6 +94,7 @@ export const MOCK_CALCULATION: CalculateResponse = {
             'node_1': {
                 node_id: 'node_1',
                 recipe_id: 'Recipe_ReinforcedIronPlate_C',
+                item_id: 'Desc_ReinforcedIronPlate_C',
                 recipe_name: 'Reinforced Iron Plate',
                 machine_type: 'Assembler',
                 machines_needed: 2,
@@ -108,6 +109,7 @@ export const MOCK_CALCULATION: CalculateResponse = {
             'node_2': {
                 node_id: 'node_2',
                 recipe_id: 'Recipe_IronPlate_C',
+                item_id: 'Desc_IronPlate_C',
                 recipe_name: 'Iron Plate',
                 machine_type: 'Constructor',
                 machines_needed: 3,
@@ -121,6 +123,7 @@ export const MOCK_CALCULATION: CalculateResponse = {
             'node_3': {
                 node_id: 'node_3',
                 recipe_id: 'Recipe_Screw_C',
+                item_id: 'Desc_Screw_C',
                 recipe_name: 'Screw',
                 machine_type: 'Constructor',
                 machines_needed: 3,
@@ -134,6 +137,7 @@ export const MOCK_CALCULATION: CalculateResponse = {
             'node_4': {
                 node_id: 'node_4',
                 recipe_id: 'Recipe_IronRod_C',
+                item_id: 'Desc_IronRod_C',
                 recipe_name: 'Iron Rod',
                 machine_type: 'Constructor',
                 machines_needed: 2,
@@ -147,6 +151,7 @@ export const MOCK_CALCULATION: CalculateResponse = {
             'node_5': {
                 node_id: 'node_5',
                 recipe_id: 'Recipe_IronIngot_C',
+                item_id: 'Desc_IronIngot_C',
                 recipe_name: 'Iron Ingot',
                 machine_type: 'Smelter',
                 machines_needed: 4,
@@ -160,6 +165,7 @@ export const MOCK_CALCULATION: CalculateResponse = {
             'node_6': {
                 node_id: 'node_6',
                 recipe_id: 'Desc_IronOre_C',
+                item_id: 'Desc_IronOre_C',
                 recipe_name: 'Iron Ore',
                 machine_type: 'Resource',
                 machines_needed: 0,

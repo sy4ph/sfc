@@ -28,12 +28,6 @@ MACHINE_POWER_USAGE = {
     "Desc_WaterPump_C": 20,
     "Desc_FrackingSmasher_C": 100, # Resource Well Pressurizer
     "Desc_FrackingExtractor_C": 0,
-    
-    # Aliases for generic names used in base_resources.py
-    "Miner": 12, # Average of Mk2
-    "Oil Extractor": 40,
-    "Water Extractor": 20,
-    "Resource Well Extractor": 0,
 }
 
 def get_machine_power_usage(machine_id: str) -> float:
