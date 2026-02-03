@@ -1,65 +1,126 @@
-# Satisfactory Factory Calculator
+# Satisfactory Factory Calculator & Planner
 
-A powerful, MILP-based production planner for Satisfactory. Calculate optimal production chains, manage recipes, and visualize your factory floor.
+A powerful, MILP-based production calculator **and** interactive node-based factory planner for Satisfactory. Calculate optimal production chains, then refine and customize them in a visual editor.
 
-**Live Demo**: [satisfactory-planner.onrender.com](https://satisfactory-planner.onrender.com/)
+**Live Demo**: [https://sfc-4s4i.onrender.com/](https://sfc-4s4i.onrender.com/)
 
-## 🚀 Backend Architecture
+---
 
-The backend has been completely refactored from a monolithic script into a clean, 3-tier modular architecture designed for performance, testability, and statelessness.
+## ✨ Features
 
-### Project Structure
+### 📊 Calculator Tab
+- **MILP Optimization**: Mathematically optimal production chains using the PuLP solver
+- **Multiple Strategies**: Minimize Resources, Maximize Efficiency, Balanced, Compact
+- **Recipe Management**: Toggle standard and alternate recipes
+- **Production Graph**: Interactive visualization with ELK layered layout
 
-```text
-backend/
-├── app.py              # Application factory and entry point
-├── config.py           # Centralized configuration and optimization weights
-├── data/               # Data Access Layer (Game data loading and filtering)
-├── routes/             # API Layer (Flask Blueprints for endpoints)
-├── services/           # Service Layer (Business logic orchestration)
-├── solvers/            # Logic Layer (MILP optimization and graph building)
-├── utils/              # Helper functions (Math, Machine info)
-└── tests/              # Comprehensive test suite
+### 🏭 Factory Planner Tab
+- **Node-Based Editor**: Drag-and-drop production nodes with React Flow
+- **Real-Time Flow Simulation**: Extraction-driven throughput calculation
+- **Bottleneck Detection**: Visual indicators for starved inputs
+- **Custom Sources**: Virtual input nodes for planning partial factories
+- **Edge Flow Control**: Click edges to lock specific flow rates
+- **Import/Export**: Save and load designs as `.sfc` JSON files
+- **Calculator Integration**: One-click export from Calculator to Planner
+
+### 📖 Recipe Book
+- Browse all 320+ Satisfactory recipes
+- Filter by machine type, item, or alternate status
+- Toggle recipes on/off for calculations
+
+---
+
+## 🏗️ Architecture
+
+```
+sfc/
+├── backend/              # Python Flask API
+│   ├── data/             # Data access layer (game data)
+│   ├── routes/           # API endpoints
+│   ├── services/         # Business logic orchestration
+│   ├── solvers/          # MILP optimization engine
+│   └── tests/            # 132-test comprehensive suite
+│
+└── web/                  # Next.js Frontend
+    └── src/
+        ├── app/          # Next.js app router
+        ├── components/
+        │   ├── planner/  # Factory Planner (nodes, edges, toolbox)
+        │   ├── graph/    # Production graph visualization
+        │   └── recipes/  # Recipe book component
+        ├── stores/       # Zustand state (planner, recipes, items)
+        ├── lib/          # Utilities (converter, power data)
+        └── hooks/        # Custom React hooks
 ```
 
-### Key Components
-
-- **MILP Solver**: Uses `PuLP` to solve complex production graphs. It handles multiple optimization strategies (Maximize Production, Minimize Resources, etc.) using both weighted and lexicographical approaches.
-- **Dependency Graph**: Dynamically computes the set of required items and recipes for any target product to minimize solver complexity.
-- **Stateless API**: Every calculation request is self-contained. The client provides the target item, amount, active recipes, and optimization preferences.
-- **Data Layer**: Efficiently manages 1.0 game data with LRU caching and robust filtering for building/producible items.
+---
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React (Vite), TypeScript, Tailwind CSS, Lucide Icons.
-- **Backend**: Python, Flask, PuLP (MILP Solver), CBC Solver.
-- **Testing**: Pytest for unit and integration testing.
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Next.js 14, TypeScript, Tailwind CSS, React Flow |
+| **State** | Zustand with localStorage persistence |
+| **Backend** | Python, Flask, PuLP (CBC Solver) |
+| **Testing** | Pytest (132 tests, 100% core coverage) |
 
-## 🏃 Getting Started
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 - Python 3.10+
 - Node.js 18+
 
 ### Backend Setup
-1. Navigate to `backend/`
-2. Install dependencies: `pip install -r requirements.txt` (or install `flask`, `flask-cors`, `pulp`, `pytest`)
-3. Run the dev server: `python -m backend.app`
+```bash
+cd backend
+pip install -r requirements.txt
+python -m backend.app
+```
 
 ### Frontend Setup
-1. Navigate to `web/`
-2. Install dependencies: `npm install`
-3. Run dev server: `npm run dev`
+```bash
+cd web
+npm install
+npm run dev
+```
 
-## ✅ Verification & Quality
-
-The backend includes a comprehensive test suite of **132 tests** covering:
-- **Unit Tests**: Full coverage of data loaders, utilities, and service orchestration.
-- **Integration Tests**: MILP solver logic, API endpoints, and graph building.
-- **Edge Case Verification**: Stress tests on massive production chains (Nuclear Pasta, Aluminum loops) and high-volume inputs.
-- **Strategy Verification**: Deep-dive logic checks to ensure strategies (Efficiency vs Compactness) produce distinct, rational results.
-
-To run tests:
+### Run Tests
 ```bash
 python -m pytest backend/tests/
 ```
+
+---
+
+## 📁 .sfc File Format
+
+The Factory Planner uses a JSON-based save format:
+
+```json
+{
+  "version": "1.0",
+  "exportedAt": "2026-02-03T15:00:00Z",
+  "name": "My Factory",
+  "nodes": [...],
+  "edges": [...]
+}
+```
+
+**Extension**: `.sfc` (Satisfactory Factory Configuration)
+
+---
+
+## 🎮 Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+Enter` | Calculate production |
+| `Tab` | Cycle between tabs |
+| `Escape` | Close modals |
+
+---
+
+## 📝 License
+
+MIT
