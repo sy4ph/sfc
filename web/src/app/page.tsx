@@ -7,6 +7,8 @@ import { RecipeBook } from '@/components/recipes';
 import { ProductionGraph, ProductionSummary } from '@/components/graph';
 import { ShortcutsModal } from '@/components/ui';
 import { useCalculation, useKeyboardShortcuts } from '@/hooks';
+import { usePlannerStore, useRecipeStore } from '@/stores';
+import { convertCalculationToPlanner } from '@/lib/plannerConverter';
 
 type ViewMode = 'planner' | 'recipes' | 'factory';
 
@@ -16,6 +18,15 @@ export default function Home() {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   const { result, calculate } = useCalculation();
+  const { importNodes } = usePlannerStore();
+  const { recipes } = useRecipeStore();
+
+  const handleOpenInPlanner = () => {
+    if (!result) return;
+    const { nodes, edges } = convertCalculationToPlanner(result);
+    importNodes(nodes, edges, recipes);
+    setViewMode('factory');
+  };
 
   useKeyboardShortcuts({
     onCalculate: calculate,
@@ -76,6 +87,18 @@ export default function Home() {
                     strategy={result.optimization_strategy}
                     provenOptimal={result.production_graph.proven_optimal}
                   />
+
+                  {/* Open in Planner Button */}
+                  <button
+                    onClick={handleOpenInPlanner}
+                    className="w-full py-3 bg-gradient-to-r from-primary/20 to-accent/20 hover:from-primary/30 hover:to-accent/30 text-text font-bold rounded-xl border border-primary/30 transition-all flex items-center justify-center gap-2 group"
+                  >
+                    <svg className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Open in Factory Planner
+                  </button>
 
                   {/* Graph Area */}
                   <div className="space-y-2">

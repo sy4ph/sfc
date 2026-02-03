@@ -50,6 +50,7 @@ interface PlannerState {
     updateEdgeData: (edgeId: string, data: Partial<PlannerEdgeData>, recipes: Record<string, any>) => void;
     clearPlanner: () => void;
     calculateFlows: (recipes: Record<string, any>) => void;
+    importNodes: (nodes: PlannerNode[], edges: PlannerEdge[], recipes: Record<string, any>) => void;
 }
 
 export const usePlannerStore = create<PlannerState>()(
@@ -81,9 +82,10 @@ export const usePlannerStore = create<PlannerState>()(
                 const edgeMap = new Map<string, PlannerEdge>(edges.map(e => [e.id, { ...e, data: { ...e.data, actualFlow: 0 } }]));
 
                 // 1. Initialize Resources (Always output at full capacity/yield)
+                // For SourceNodes (isResource), the outputRate IS the final rate - no modifiers needed
                 nodeMap.forEach(node => {
                     if (node.data.isResource && node.data.resourceId) {
-                        const rate = (node.data.outputRate || 60) * (node.data.efficiency / 100) * (node.data.machineCount || 1);
+                        const rate = (node.data.outputRate as number) || 60;
                         const outputs = node.data.outputs as Record<string, number>;
                         const theoreticalOutputs = node.data.theoreticalOutputs as Record<string, number>;
                         outputs[node.data.resourceId] = rate;
@@ -133,7 +135,9 @@ export const usePlannerStore = create<PlannerState>()(
                                 const recipe = recipes[target.data.recipeId];
                                 const ingredient = recipe.ingredients.find((ing: any) => ing.item === itemId);
                                 if (ingredient) {
-                                    const maxIntake = (ingredient.amount / recipe.time) * 60 * (target.data.efficiency / 100) * (target.data.machineCount || 1);
+                                    const targetEfficiency = (target.data.efficiency as number) || 100;
+                                    const targetMachineCount = (target.data.machineCount as number) || 1;
+                                    const maxIntake = (ingredient.amount / recipe.time) * 60 * (targetEfficiency / 100) * targetMachineCount;
                                     // How much has target already received from other edges?
                                     const alreadyReceived = ((target.data.inputs || {}) as Record<string, number>)[itemId] || 0;
                                     const remainingCapacity = Math.max(0, maxIntake - alreadyReceived);
@@ -154,12 +158,15 @@ export const usePlannerStore = create<PlannerState>()(
                         const recipe = recipes[node.data.recipeId];
                         if (!recipe) return;
 
+                        const nodeEfficiency = (node.data.efficiency as number) || 100;
+                        const nodeMachineCount = (node.data.machineCount as number) || 1;
+
                         let throughput = 1.0;
                         const bottlenecks: string[] = [];
                         const theoreticalOutputs: Record<string, number> = {};
 
                         recipe.ingredients.forEach((ing: any) => {
-                            const required = (ing.amount / recipe.time) * 60 * (node.data.efficiency / 100) * (node.data.machineCount || 1);
+                            const required = (ing.amount / recipe.time) * 60 * (nodeEfficiency / 100) * nodeMachineCount;
                             const nodeInputs = (node.data.inputs || {}) as Record<string, number>;
                             const available = nodeInputs[ing.item] || 0;
 
@@ -179,7 +186,7 @@ export const usePlannerStore = create<PlannerState>()(
 
                         const newOutputs: Record<string, number> = {};
                         recipe.products.forEach((prod: any) => {
-                            const baseRate = (prod.amount / recipe.time) * 60 * (node.data.efficiency / 100) * (node.data.machineCount || 1);
+                            const baseRate = (prod.amount / recipe.time) * 60 * (nodeEfficiency / 100) * nodeMachineCount;
                             theoreticalOutputs[prod.item] = baseRate;
                             newOutputs[prod.item] = baseRate * throughput;
                         });
@@ -269,9 +276,12 @@ export const usePlannerStore = create<PlannerState>()(
             clearPlanner: () => {
                 if (window.confirm('Are you sure you want to clear the entire planner?')) {
                     set({ nodes: [], edges: [] });
-                    // No need to call calculateFlows here, as it will be called with empty nodes/edges
-                    // and will correctly reset flow data.
                 }
+            },
+
+            importNodes: (nodes, edges, recipes) => {
+                set({ nodes, edges });
+                get().calculateFlows(recipes);
             },
         }),
         {
