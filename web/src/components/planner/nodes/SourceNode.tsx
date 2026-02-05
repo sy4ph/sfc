@@ -9,9 +9,12 @@ import Image from 'next/image';
 
 export const SourceNode = memo((props: NodeProps<PlannerNode>) => {
     const { id, data, selected } = props;
-    const { updateNodeData, deleteNode } = usePlannerStore();
-    const { recipes } = useRecipeStore();
-    const { items } = useItemStore();
+
+    // PERF: Only subscribe to specific actions, not entire store
+    const updateNodeData = usePlannerStore(state => state.updateNodeData);
+    const deleteNode = usePlannerStore(state => state.deleteNode);
+    const recipes = useRecipeStore(state => state.recipes);
+    const items = useItemStore(state => state.items);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');

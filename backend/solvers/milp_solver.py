@@ -40,39 +40,98 @@ class MILPSolver:
         if not PULP_AVAILABLE:
             raise RuntimeError("PuLP library is not installed in the environment.")
 
-    def optimize(self, target_item: str, amount_per_min: float, strategy: str, 
-                 active_map: Dict[str, bool], custom_weights: Dict[str, float] = None, 
-                 time_limit: float = None, rel_gap: float = None) -> Optional[Dict[str, Any]]:
+    def optimize(self, 
+                 targets: List[Dict[str, Any]] = None,
+                 strategy: str = 'balanced_production',
+                 active_map: Dict[str, bool] = None,
+                 custom_weights: Dict[str, float] = None, 
+                 time_limit: float = None, 
+                 rel_gap: float = None,
+                 # Legacy single-target params (deprecated but supported)
+                 target_item: str = None,
+                 amount_per_min: float = None) -> Optional[Dict[str, Any]]:
         """
-        Find the optimal production chain for a given target.
+        Find the optimal production chain for given target(s).
         
-        Returns a graph dictionary or None if infeasible.
+        Args:
+            targets: List of targets [{"item": str, "amount": float}, ...]
+            strategy: Optimization strategy name
+            active_map: Recipe enable/disable map
+            custom_weights: Weights for 'custom' strategy
+            time_limit: Solver time limit in seconds
+            rel_gap: Relative gap tolerance
+            target_item: (DEPRECATED) Single target item ID
+            amount_per_min: (DEPRECATED) Single target amount
+        
+        Returns:
+            Graph dictionary or None if infeasible.
         """
-        if target_item not in self.items:
-            raise ValueError(f"Unknown target item: {target_item}")
+        # Handle legacy positional argument API: optimize("item", amount, "strategy", active_map)
+        # In this case, targets would be a string (the old target_item)
+        if isinstance(targets, str):
+            # Legacy positional call: optimize(target_item, amount, strategy, active_map)
+            legacy_target_item = targets
+            legacy_amount = strategy  # second positional arg
+            legacy_strategy = active_map if isinstance(active_map, str) else 'balanced_production'
+            legacy_active_map = custom_weights if isinstance(custom_weights, dict) else {}
+            
+            targets = [{"item": legacy_target_item, "amount": float(legacy_amount)}]
+            strategy = legacy_strategy
+            active_map = legacy_active_map
+            custom_weights = None
+        
+        # Handle legacy keyword argument API
+        if targets is None:
+            if target_item is not None and amount_per_min is not None:
+                targets = [{"item": target_item, "amount": amount_per_min}]
+            else:
+                raise ValueError("Must provide 'targets' list or legacy 'target_item'/'amount_per_min' parameters")
+        
+        if not targets:
+            raise ValueError("Must provide at least one target")
+            
+        if active_map is None:
+            active_map = {}
+            
+        # Validate all target items exist
+        for t in targets:
+            item_id = t.get('item')
+            if item_id not in self.items:
+                raise ValueError(f"Unknown target item: {item_id}")
 
         t_limit = time_limit if time_limit is not None else DEFAULT_SOLVER_TIME_LIMIT
         gap = rel_gap if rel_gap is not None else DEFAULT_REL_GAP
         weights = get_strategy_weights(strategy, custom_weights)
 
-        # 1. Dependency closure prune
-        needed_items, needed_recipes = dependency_closure_recipes(target_item, self.recipes, active_map)
+        # Extract target item IDs
+        target_item_ids = [t['item'] for t in targets]
+
+        # 1. Dependency closure prune (multi-target version)
+        from .dependency_graph import dependency_closure_multi
+        needed_items, needed_recipes = dependency_closure_multi(target_item_ids, self.recipes, active_map)
         active_recipe_ids = list(needed_recipes)
 
         if not active_recipe_ids:
-            # Check if it's a base resource (no recipes needed)
-            if is_base_resource(target_item):
-                node_id = f"extract_{target_item}_0"
-                node = build_base_resource_node(node_id, target_item, amount_per_min)
+            # Check if ALL targets are base resources (no recipes needed)
+            all_base = all(is_base_resource(t['item']) for t in targets)
+            if all_base:
+                recipe_nodes = {}
+                for i, t in enumerate(targets):
+                    node_id = f"extract_{t['item']}_{i}"
+                    recipe_nodes[node_id] = build_base_resource_node(node_id, t['item'], t['amount'])
                 return {
-                    'recipe_nodes': {node_id: node},
-                    'target_item': target_item,
-                    'target_amount': amount_per_min,
+                    'recipe_nodes': recipe_nodes,
+                    'targets': targets,
+                    # Legacy compatibility fields
+                    'target_item': targets[0]['item'] if len(targets) == 1 else None,
+                    'target_amount': targets[0]['amount'] if len(targets) == 1 else None,
                     'strategy': strategy,
                     'proven_optimal': True,
                     'is_base_only': True
                 }
-            raise ValueError(f"No active recipes available to produce {target_item}")
+            # Some non-base targets but no recipes available
+            missing = [t['item'] for t in targets if not is_base_resource(t['item'])]
+            raise ValueError(f"No active recipes available to produce: {', '.join(missing)}")
 
         # Base items involved in this closure
         base_items = [iid for iid in needed_items if is_base_resource(iid)]
@@ -81,7 +140,7 @@ class MILPSolver:
         if strategy == 'custom':
             # Weighted single pass for custom strategy
             result = self._solve_weighted(
-                target_item, amount_per_min, active_recipe_ids, base_items,
+                targets, active_recipe_ids, base_items,
                 weights, t_limit, gap
             )
         else:
@@ -92,12 +151,9 @@ class MILPSolver:
             if strategy == 'balanced_production':
                 if DEBUG_CALC:
                     print("[MILP] Running balanced pre-pass...")
-                # We don't strictly NEED the result of the pre-pass to continue, 
-                # but in the original code it was intended as a warm start/check.
-                # Here we just proceed to the lex solve which is more robust.
             
             result = self._solve_lexicographic(
-                target_item, amount_per_min, active_recipe_ids, base_items,
+                targets, active_recipe_ids, base_items,
                 priorities, t_limit, gap
             )
 
@@ -111,6 +167,7 @@ class MILPSolver:
         node_counter = 0
 
         # Build recipe nodes
+        target_item_set = set(target_item_ids)
         for rid in active_recipe_ids:
             mv = value(m_vars[rid])
             if mv and mv > 1e-6:
@@ -124,7 +181,7 @@ class MILPSolver:
                 
                 # Filter to only relevant items (optional but cleaner)
                 inputs = {k: v for k, v in inputs.items() if k in needed_items}
-                outputs = {k: v for k, v in outputs.items() if k in (set(needed_items) | {target_item})}
+                outputs = {k: v for k, v in outputs.items() if k in (set(needed_items) | target_item_set)}
 
                 node_id = f"recipe_{rid}_{node_counter}"
                 node_counter += 1
@@ -142,8 +199,10 @@ class MILPSolver:
 
         return {
             'recipe_nodes': recipe_nodes,
-            'target_item': target_item,
-            'target_amount': amount_per_min,
+            'targets': targets,
+            # Legacy compatibility fields (for single-target requests)
+            'target_item': targets[0]['item'] if len(targets) == 1 else None,
+            'target_amount': targets[0]['amount'] if len(targets) == 1 else None,
             'weights_used': weights,
             'strategy': strategy,
             'objective_components': {k: float(v) for k, v in comp_values.items()},
@@ -152,9 +211,16 @@ class MILPSolver:
             'proven_optimal': proven_optimal
         }
 
-    def _build_base_model(self, target_item: str, amount_per_min: float, 
+    def _build_base_model(self, targets: List[Dict[str, Any]], 
                           active_recipe_ids: List[str], base_items: List[str]) -> Tuple:
-        """Helper to build consistent PuLP model structure."""
+        """
+        Helper to build consistent PuLP model structure.
+        
+        Args:
+            targets: List of targets [{"item": str, "amount": float}, ...]
+            active_recipe_ids: List of recipe IDs to consider
+            base_items: List of base resource item IDs
+        """
         model = LpProblem('production_plan', LpMinimize)
         
         # Machine variables (continuous count) and Activity variables (binary used/not)
@@ -185,8 +251,12 @@ class MILPSolver:
             for ing in rec.get('ingredients', []):
                 cons_coeff[ing['item']][rid] += ing['amount'] * cyc
 
+        # Build targets lookup: item_id -> amount
+        target_demands = {t['item']: t['amount'] for t in targets}
+        target_item_ids = set(target_demands.keys())
+
         # Item balance constraints: Production - Consumption >= Demand
-        all_relevant_items = set(prod_coeff.keys()) | set(cons_coeff.keys()) | {target_item}
+        all_relevant_items = set(prod_coeff.keys()) | set(cons_coeff.keys()) | target_item_ids
         for iid in all_relevant_items:
             if is_base_resource(iid):
                 if iid in cons_coeff:
@@ -194,14 +264,14 @@ class MILPSolver:
             else:
                 prod_expr = lpSum(prod_coeff[iid][rid] * m_vars[rid] for rid in prod_coeff.get(iid, {})) if iid in prod_coeff else 0
                 cons_expr = lpSum(cons_coeff[iid][rid] * m_vars[rid] for rid in cons_coeff.get(iid, {})) if iid in cons_coeff else 0
-                demand = amount_per_min if iid == target_item else 0
+                demand = target_demands.get(iid, 0)
                 
-                # Production of target must be exactly enough (with tiny tolerance)
-                if iid == target_item:
+                # Production of targets must be exactly enough (with tiny tolerance)
+                if demand > 0:
                     model += prod_expr - cons_expr >= demand
                     model += prod_expr - cons_expr <= demand * 1.0000001
                 else:
-                    model += prod_expr - cons_expr >= demand
+                    model += prod_expr - cons_expr >= 0
 
         # Objective components
         comps = {
@@ -213,12 +283,12 @@ class MILPSolver:
         
         return model, m_vars, y_recipe, base_use, base_used_bin, comps
 
-    def _solve_weighted(self, target_item: str, amount_per_min: float, 
+    def _solve_weighted(self, targets: List[Dict[str, Any]], 
                         active_recipe_ids: List[str], base_items: List[str], 
                         weights: Dict[str, float], time_limit: float, rel_gap: float):
         """Single-pass weighted optimization."""
         model, m_vars, y_recipe, base_use, base_used_bin, comps = self._build_base_model(
-            target_item, amount_per_min, active_recipe_ids, base_items
+            targets, active_recipe_ids, base_items
         )
         
         # Weighted objective
@@ -244,7 +314,7 @@ class MILPSolver:
         
         return model, m_vars, y_recipe, base_use, base_used_bin, comps, proven_optimal, comp_values
 
-    def _solve_lexicographic(self, target_item: str, amount_per_min: float, 
+    def _solve_lexicographic(self, targets: List[Dict[str, Any]], 
                              active_recipe_ids: List[str], base_items: List[str], 
                              order: List[str], time_limit: float, rel_gap: float):
         """Multi-pass lexicographic optimization."""
@@ -260,7 +330,7 @@ class MILPSolver:
             alloc_time = max(1, int(remaining_time / (passes - idx)))
             
             model, m_vars, y_recipe, base_use, base_used_bin, comps = self._build_base_model(
-                target_item, amount_per_min, active_recipe_ids, base_items
+                targets, active_recipe_ids, base_items
             )
             
             # Constrain previously optimized components to their optimal values (relax slightly for precision)
@@ -305,3 +375,4 @@ class MILPSolver:
                 break
                 
         return last_success
+

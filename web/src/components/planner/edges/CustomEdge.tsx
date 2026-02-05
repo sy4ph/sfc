@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { BaseEdge, EdgeLabelRenderer, EdgeProps, getSmoothStepPath } from '@xyflow/react';
 import { usePlannerStore, useRecipeStore } from '@/stores';
 import { PlannerEdgeData } from '@/stores/plannerStore';
 
-export function CustomEdge({
+export const CustomEdge = memo(function CustomEdge({
     id,
     source,
     target,
@@ -19,8 +19,10 @@ export function CustomEdge({
     markerEnd,
     data,
 }: EdgeProps) {
-    const { updateEdgeData, deleteEdge } = usePlannerStore();
-    const { recipes } = useRecipeStore();
+    // PERF: Only subscribe to specific actions, not entire store
+    const updateEdgeData = usePlannerStore(state => state.updateEdgeData);
+    const deleteEdge = usePlannerStore(state => state.deleteEdge);
+    const recipes = useRecipeStore(state => state.recipes);
     const edgeData = data as PlannerEdgeData;
 
     const [isEditing, setIsEditing] = useState(false);
@@ -143,4 +145,4 @@ export function CustomEdge({
             </EdgeLabelRenderer>
         </>
     );
-}
+});

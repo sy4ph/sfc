@@ -9,9 +9,10 @@ import { getItemIconPath } from '@/lib/utils';
 interface ItemSelectorProps {
     value: string | null;
     onChange: (itemId: string) => void;
+    compact?: boolean;
 }
 
-export function ItemSelector({ value, onChange }: ItemSelectorProps) {
+export function ItemSelector({ value, onChange, compact = false }: ItemSelectorProps) {
     const { itemsList, isLoading, getItemName } = useItems();
     const [search, setSearch] = useState('');
 
@@ -30,8 +31,8 @@ export function ItemSelector({ value, onChange }: ItemSelectorProps) {
                     <Image
                         src={getItemIconPath(item.id)}
                         alt={item.name}
-                        width={24}
-                        height={24}
+                        width={compact ? 20 : 24}
+                        height={compact ? 20 : 24}
                         className="rounded"
                         onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
@@ -39,22 +40,23 @@ export function ItemSelector({ value, onChange }: ItemSelectorProps) {
                     />
                 ),
             }));
-    }, [itemsList]);
+    }, [itemsList, compact]);
 
     if (isLoading) {
         return (
-            <div className="animate-pulse bg-surface-high rounded-lg h-12" />
+            <div className={`animate-pulse bg-surface-high rounded-lg ${compact ? 'h-8' : 'h-12'}`} />
         );
     }
 
     return (
         <Select
-            label="Target Item"
+            label={compact ? undefined : "Target Item"}
             options={options}
             value={value}
             onChange={onChange}
-            placeholder="Select an item to produce..."
+            placeholder={compact ? "Select item..." : "Select an item to produce..."}
             searchable
+            compact={compact}
         />
     );
 }

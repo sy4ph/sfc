@@ -1,17 +1,21 @@
 'use client';
 
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import Image from 'next/image';
 import { getItemIconPath, getMachineName } from '@/lib/utils';
 import { calculateMachinePower } from '@/lib/powerData';
 import { usePlannerStore, useRecipeStore } from '@/stores';
 import { PlannerNode, PlannerNodeData } from '@/stores/plannerStore';
+import { useShallow } from 'zustand/react/shallow';
 
 export const ProductionNode = memo((props: NodeProps<PlannerNode>) => {
     const { id, data, selected } = props;
-    const { updateNodeData, deleteNode } = usePlannerStore();
-    const { recipes } = useRecipeStore();
+
+    // PERF: Only subscribe to the specific actions we need, not entire store
+    const updateNodeData = usePlannerStore(state => state.updateNodeData);
+    const deleteNode = usePlannerStore(state => state.deleteNode);
+    const recipes = useRecipeStore(state => state.recipes);
 
     // Type safe access
     const nodeData = data as PlannerNodeData;
@@ -83,7 +87,7 @@ export const ProductionNode = memo((props: NodeProps<PlannerNode>) => {
     const handleEfficiencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setLocalEff(val);
-        const num = parseInt(val);
+        const num = parseFloat(val);
         if (!isNaN(num) && num > 0) {
             updateNodeData(id, { efficiency: num }, recipes);
         }
@@ -92,7 +96,7 @@ export const ProductionNode = memo((props: NodeProps<PlannerNode>) => {
     const handleExtractionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setLocalExtraction(val);
-        const num = parseInt(val);
+        const num = parseFloat(val);
         if (!isNaN(num) && num > 0) {
             updateNodeData(id, { outputRate: num }, recipes);
         }
@@ -102,10 +106,10 @@ export const ProductionNode = memo((props: NodeProps<PlannerNode>) => {
         if (type === 'count' && (localCount === '' || parseInt(localCount) < 1)) {
             setLocalCount('1');
             updateNodeData(id, { machineCount: 1 }, recipes);
-        } else if (type === 'eff' && (localEff === '' || parseInt(localEff) < 1)) {
+        } else if (type === 'eff' && (localEff === '' || parseFloat(localEff) < 1)) {
             setLocalEff('100');
             updateNodeData(id, { efficiency: 100 }, recipes);
-        } else if (type === 'extract' && (localExtraction === '' || parseInt(localExtraction) < 1)) {
+        } else if (type === 'extract' && (localExtraction === '' || parseFloat(localExtraction) < 1)) {
             setLocalExtraction('60');
             updateNodeData(id, { outputRate: 60 }, recipes);
         }

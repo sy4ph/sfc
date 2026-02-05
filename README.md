@@ -9,12 +9,15 @@ A powerful, MILP-based production calculator **and** interactive node-based fact
 ## ✨ Features
 
 ### 📊 Calculator Tab
+- **Multi-Tab Support**: Working on multiple factory designs simultaneously
+- **Comparison View**: Side-by-side metrics comparison (Power, Machines, Resources)
 - **MILP Optimization**: Mathematically optimal production chains using the PuLP solver
 - **Multiple Strategies**: Minimize Resources, Maximize Efficiency, Balanced, Compact
 - **Recipe Management**: Toggle standard and alternate recipes
 - **Production Graph**: Interactive visualization with ELK layered layout
 
 ### 🏭 Factory Planner Tab
+- **URL Sharing**: Share your factory designs instantly via compressed URLs
 - **Node-Based Editor**: Drag-and-drop production nodes with React Flow
 - **Real-Time Flow Simulation**: Extraction-driven throughput calculation
 - **Bottleneck Detection**: Visual indicators for starved inputs
@@ -59,7 +62,7 @@ sfc/
 
 | Layer | Technology |
 |-------|------------|
-| **Frontend** | Next.js 14, TypeScript, Tailwind CSS, React Flow |
+| **Frontend** | Next.js 16, TypeScript, Tailwind CSS, React Flow |
 | **State** | Zustand with localStorage persistence |
 | **Backend** | Python, Flask, PuLP (CBC Solver) |
 | **Testing** | Pytest (132 tests, 100% core coverage) |

@@ -50,11 +50,11 @@ export function ProductionGraph({ graph, onNodeClick }: ProductionGraphProps) {
                 font.color = '#F59E0B'; // Yellow for alternates
             } else if (node.is_end_product_node) {
                 color = {
-                    background: FICSIT_ORANGE,
-                    border: FICSIT_ORANGE,
-                    highlight: { background: FICSIT_ORANGE, border: '#FFF' },
+                    background: '#A855F7',
+                    border: '#A855F7',
+                    highlight: { background: '#A855F7', border: '#FFF' },
                 };
-                font.color = '#FA9549'; // Orange for end product (but bold)
+                font.color = '#A855F7'; // Purple for end product (output items)
                 font.size = 16;
             } else {
                 // Standard recipes
@@ -79,24 +79,40 @@ export function ProductionGraph({ graph, onNodeClick }: ProductionGraphProps) {
         const edges: any[] = [];
         let edgeId = 0;
 
+        // Pre-calculate total production per item
+        const itemTotalProduction: Record<string, number> = {};
+        Object.values(recipeNodes).forEach(node => {
+            Object.entries(node.outputs).forEach(([item, amount]) => {
+                itemTotalProduction[item] = (itemTotalProduction[item] || 0) + amount;
+            });
+        });
+
         for (const [sourceId, sourceNode] of Object.entries(recipeNodes)) {
             for (const [outputItem, outputRate] of Object.entries(sourceNode.outputs)) {
                 for (const [targetId, targetNode] of Object.entries(recipeNodes)) {
                     if (sourceId === targetId) continue;
+
                     const inputRate = targetNode.inputs[outputItem];
-                    if (inputRate && inputRate > 0) {
-                        edges.push({
-                            id: `edge_${edgeId++}`,
-                            from: sourceId,
-                            to: targetId,
-                            label: `${inputRate.toFixed(1)}/min`,
-                            arrows: 'to',
-                            color: { color: '#4B5563', opacity: 0.8, highlight: '#FA9549' },
-                            width: 2,
-                            font: { size: 10, color: '#9CA3AF', strokeWidth: 2, strokeColor: '#1A1D21', align: 'horizontal' },
-                            smooth: { enabled: true, type: 'cubicBezier', roundness: 0.5 },
-                            dashes: sourceNode.is_alternate, // Dash edges from alternate recipes
-                        });
+                    const totalProd = itemTotalProduction[outputItem] || 0;
+
+                    if (inputRate && inputRate > 0 && totalProd > 0) {
+                        // Calculate proportional flow: (SourceOutput / TotalSupply) * TargetDemand
+                        const flowShare = (outputRate / totalProd) * inputRate;
+
+                        if (flowShare > 0.001) {
+                            edges.push({
+                                id: `edge_${edgeId++}`,
+                                from: sourceId,
+                                to: targetId,
+                                label: `${flowShare.toFixed(1)}/min`,
+                                arrows: 'to',
+                                color: { color: '#4B5563', opacity: 0.8, highlight: '#FA9549' },
+                                width: 2,
+                                font: { size: 10, color: '#9CA3AF', strokeWidth: 2, strokeColor: '#1A1D21', align: 'horizontal' },
+                                smooth: { enabled: true, type: 'cubicBezier', roundness: 0.5 },
+                                dashes: sourceNode.is_alternate, // Dash edges from alternate recipes
+                            });
+                        }
                     }
                 }
             }
@@ -130,9 +146,18 @@ export function ProductionGraph({ graph, onNodeClick }: ProductionGraphProps) {
 
             try {
                 const layouted = await elk.layout(elkGraph);
-                const nodesWithPos = nodesData.map(node => {
+                const nodesWithPos = nodesData.map((node, index) => {
                     const pos = layouted.children?.find((c: any) => c.id === node.id);
-                    return pos ? { ...node, x: pos.x, y: pos.y } : node;
+                    if (pos) {
+                        return { ...node, x: pos.x, y: pos.y };
+                    }
+                    // Fallback: Grid position for unlayouted nodes
+                    console.warn(`Node ${node.id} missing ELK position, using fallback.`);
+                    return {
+                        ...node,
+                        x: 100 + (index % 5) * 250,
+                        y: 800 + Math.floor(index / 5) * 150
+                    };
                 });
 
                 const options = {

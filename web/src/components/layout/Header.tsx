@@ -51,6 +51,7 @@ export function Header({ onMenuToggle, viewMode, onViewModeChange }: HeaderProps
                 </nav>
 
                 <div className="flex items-center gap-4">
+                    <span className="text-[10px] bg-surface-high text-text-dim px-2 py-0.5 rounded border border-border/50 font-mono">v0.2.1</span>
                     <button
                         onClick={toggleTheme}
                         className="p-2 text-text-dim hover:text-text transition-colors rounded-lg hover:bg-surface-high"

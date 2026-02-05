@@ -62,3 +62,26 @@ def dependency_closure_recipes(target_item: str, recipes_data: Dict[str, Any], a
                 stack.append(ing['item'])
                 
     return needed_items, needed_recipes
+
+
+def dependency_closure_multi(target_items: list, recipes_data: Dict[str, Any], active_map: Dict[str, bool] = None) -> Tuple[Set[str], Set[str]]:
+    """
+    Compute union of dependency closures for multiple target items.
+    
+    Args:
+        target_items: List of item IDs to produce.
+        recipes_data: Total recipe dictionary.
+        active_map: Map of recipe_id -> boolean indicating if recipe is enabled.
+        
+    Returns:
+        Tuple of (needed_items_set, needed_recipes_set).
+    """
+    all_items = set()
+    all_recipes = set()
+    
+    for item in target_items:
+        items, recipes = dependency_closure_recipes(item, recipes_data, active_map)
+        all_items |= items
+        all_recipes |= recipes
+        
+    return all_items, all_recipes

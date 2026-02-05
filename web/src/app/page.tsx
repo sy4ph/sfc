@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { Header, Sidebar } from '@/components/layout';
-import { PlannerPanel, FactoryPlanner } from '@/components/planner';
+import { PlannerPanel, FactoryPlanner, CalculatorTabs, ComparisonView } from '@/components/planner';
 import { RecipeBook } from '@/components/recipes';
 import { ProductionGraph, ProductionSummary } from '@/components/graph';
 import { ShortcutsModal } from '@/components/ui';
 import { useCalculation, useKeyboardShortcuts } from '@/hooks';
 import { usePlannerStore, useRecipeStore } from '@/stores';
-import { convertCalculationToPlanner } from '@/lib/plannerConverter';
+import { convertCalculationToPlannerAsync } from '@/lib/plannerConverter';
 
 type ViewMode = 'planner' | 'recipes' | 'factory';
 
@@ -16,14 +16,16 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>('planner');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
 
-  const { result, calculate } = useCalculation();
+  const { result, calculate, tabs } = useCalculation();
   const { importNodes } = usePlannerStore();
   const { recipes } = useRecipeStore();
 
-  const handleOpenInPlanner = () => {
+  const handleOpenInPlanner = async () => {
     if (!result) return;
-    const { nodes, edges } = convertCalculationToPlanner(result);
+    const { nodes, edges } = await convertCalculationToPlannerAsync(result);
+    // Import logic
     importNodes(nodes, edges, recipes);
     setViewMode('factory');
   };
@@ -41,9 +43,18 @@ export default function Home() {
     onClose: () => {
       setIsSidebarOpen(false);
       setIsShortcutsOpen(false);
+      setIsCompareOpen(false);
     },
     onHelp: () => setIsShortcutsOpen(true),
+    // @ts-ignore
+    onUndo: () => usePlannerStore.temporal.getState().undo(),
+    // @ts-ignore
+    onRedo: () => usePlannerStore.temporal.getState().redo(),
+    onCopy: usePlannerStore.getState().copySelection,
+    onPaste: () => usePlannerStore.getState().paste(recipes),
   });
+
+  const hasMultipleResults = tabs.filter(t => t.result).length > 1;
 
   return (
     <div className="min-h-screen bg-bg transition-colors duration-300">
@@ -58,12 +69,47 @@ export default function Home() {
         onClose={() => setIsShortcutsOpen(false)}
       />
 
+      {isCompareOpen && (
+        <ComparisonView onClose={() => setIsCompareOpen(false)} />
+      )}
+
       <div className="max-w-screen-2xl mx-auto flex">
         {/* Sidebar - Only show in Planner view */}
         {viewMode === 'planner' && (
           <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}>
-            <div className="animate-fade-in">
-              <PlannerPanel />
+            <div className="animate-fade-in flex flex-col h-full">
+              <div className="flex-none">
+                <CalculatorTabs />
+              </div>
+
+              <div className="flex-1 overflow-y-auto scrollbar-hide py-2">
+                <PlannerPanel />
+              </div>
+
+              {/* Comparison Trigger */}
+              <div className="flex-none mt-4 pt-4 border-t border-border">
+                <button
+                  onClick={() => setIsCompareOpen(true)}
+                  disabled={!hasMultipleResults}
+                  className={`
+                        w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wide transition-all
+                        ${hasMultipleResults
+                      ? 'bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20'
+                      : 'bg-surface hover:bg-surface-high text-text-dim border border-transparent cursor-not-allowed opacity-50'
+                    }
+                      `}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Compare Tabs
+                </button>
+                {!hasMultipleResults && tabs.filter(t => t.result).length === 1 && (
+                  <p className="text-[10px] text-center text-text-dim mt-2">
+                    Run calculation on another tab to enable comparison.
+                  </p>
+                )}
+              </div>
             </div>
           </Sidebar>
         )}

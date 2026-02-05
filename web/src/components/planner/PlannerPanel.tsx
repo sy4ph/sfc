@@ -1,37 +1,28 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useCalculation, useItems } from '@/hooks';
 import { Button, Input } from '@/components/ui';
 import { ItemSelector } from './ItemSelector';
 import { StrategySelector } from './StrategySelector';
 import { WeightsSelector } from './WeightsSelector';
-import { setAccentColor } from '@/lib/colors';
 
 export function PlannerPanel() {
     const {
-        targetItem,
-        targetAmount,
+        targets,
         strategy,
         customWeights,
-        result,
         isCalculating,
         isFinishing,
         error,
         canCalculate,
-        setTargetItem,
-        setTargetAmount,
+        addTarget,
+        removeTarget,
+        updateTargetItem,
+        updateTargetAmount,
         setStrategy,
         setCustomWeights,
         calculate,
     } = useCalculation();
-
-    // Dynamic accent color removed per user request
-    /*
-    useEffect(() => {
-        setAccentColor(targetItem);
-    }, [targetItem]);
-    */
 
     const { getItemName } = useItems();
 
@@ -41,23 +32,72 @@ export function PlannerPanel() {
             <div>
                 <h2 className="text-lg font-semibold text-text">Production Planner</h2>
                 <p className="text-sm text-text-dim mt-1">
-                    Calculate the optimal production chain for any item
+                    Calculate the optimal production chain for multiple items
                 </p>
             </div>
 
-            {/* Item Selection */}
-            <ItemSelector value={targetItem} onChange={setTargetItem} />
+            {/* Target Items */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-text">Target Items</label>
+                    <button
+                        onClick={() => addTarget('')}
+                        className="text-xs text-primary hover:text-primary-bright transition-colors flex items-center gap-1"
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add Target
+                    </button>
+                </div>
 
-            {/* Amount */}
-            <Input
-                label="Amount (per minute)"
-                type="number"
-                min="0.01"
-                step="1"
-                value={targetAmount}
-                onChange={(e) => setTargetAmount(parseFloat(e.target.value) || 0)}
-                placeholder="Enter amount..."
-            />
+                {targets.length === 0 ? (
+                    <div
+                        onClick={() => addTarget('')}
+                        className="p-4 border-2 border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/50 transition-colors"
+                    >
+                        <p className="text-sm text-text-dim">Click to add a production target</p>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {targets.map((target, index) => (
+                            <div
+                                key={index}
+                                className="flex items-center gap-2 p-2 bg-surface-high rounded-lg border border-border/50"
+                            >
+                                <div className="flex-1 min-w-0">
+                                    <ItemSelector
+                                        value={target.item || null}
+                                        onChange={(itemId) => updateTargetItem(index, itemId || '')}
+                                        compact
+                                    />
+                                </div>
+                                <div className="w-24">
+                                    <input
+                                        type="number"
+                                        min="0.01"
+                                        step="1"
+                                        value={target.amount}
+                                        onChange={(e) => updateTargetAmount(index, parseFloat(e.target.value) || 0)}
+                                        placeholder="Amt"
+                                        className="w-full px-2 py-1.5 text-sm bg-surface border border-border rounded text-text placeholder:text-text-dim focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                </div>
+                                <span className="text-xs text-text-dim">/min</span>
+                                <button
+                                    onClick={() => removeTarget(index)}
+                                    className="p-1.5 text-text-dim hover:text-red-400 transition-colors"
+                                    title="Remove target"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
 
             {/* Strategy */}
             <StrategySelector value={strategy} onChange={setStrategy} />
@@ -79,7 +119,7 @@ export function PlannerPanel() {
                 <Button
                     onClick={calculate}
                     disabled={!canCalculate || isCalculating}
-                    isLoading={false} // We handle loading visually
+                    isLoading={false}
                     className="w-full relative overflow-hidden"
                     size="lg"
                 >
@@ -127,12 +167,17 @@ export function PlannerPanel() {
             `}</style>
 
             {/* Quick Info */}
-            {targetItem && (
+            {targets.length > 0 && targets.some(t => t.item) && (
                 <div className="p-3 bg-surface-high rounded-lg">
                     <p className="text-sm text-text-dim">
                         Calculating optimal production for{' '}
                         <span className="text-primary font-medium">
-                            {targetAmount}x {getItemName(targetItem)}
+                            {targets.filter(t => t.item).map((t, i) => (
+                                <span key={i}>
+                                    {i > 0 && ', '}
+                                    {t.amount}x {getItemName(t.item)}
+                                </span>
+                            ))}
                         </span>{' '}
                         per minute
                     </p>

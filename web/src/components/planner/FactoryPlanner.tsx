@@ -15,18 +15,27 @@ import '@xyflow/react/dist/style.css';
 import { usePlannerStore, useRecipeStore, useItemStore } from '@/stores';
 import { ProductionNode } from './nodes/ProductionNode';
 import { SourceNode } from './nodes/SourceNode';
+import { GroupNode } from './nodes/GroupNode';
+import { NoteNode } from './nodes/NoteNode';
 import { CustomEdge } from './edges/CustomEdge';
 import { PlannerToolbox } from './PlannerToolbox';
 import { exportToSFC, parseSFCFile, downloadFile } from '@/lib/plannerConverter';
+import { compressPlan, decompressPlan } from '@/lib/urlCompression';
 
 const nodeTypes = {
     productionNode: ProductionNode,
     sourceNode: SourceNode,
+    group: GroupNode,
+    note: NoteNode,
 };
 
 const edgeTypes = {
     customEdge: CustomEdge,
 };
+
+import { useShallow } from 'zustand/react/shallow';
+
+// ... imports
 
 function FactoryPlannerInner() {
     const {
@@ -40,7 +49,18 @@ function FactoryPlannerInner() {
         addNode,
         clearPlanner,
         importNodes
-    } = usePlannerStore();
+    } = usePlannerStore(useShallow(state => ({
+        nodes: state.nodes,
+        edges: state.edges,
+        isSidebarVisible: state.isSidebarVisible,
+        toggleSidebar: state.toggleSidebar,
+        onNodesChange: state.onNodesChange,
+        onEdgesChange: state.onEdgesChange,
+        onConnect: state.onConnect,
+        addNode: state.addNode,
+        clearPlanner: state.clearPlanner,
+        importNodes: state.importNodes,
+    })));
 
     const { recipes, fetchRecipes } = useRecipeStore();
     const { items, fetchItems } = useItemStore();
@@ -52,7 +72,25 @@ function FactoryPlannerInner() {
         fetchItems();
     }, [fetchRecipes, fetchItems]);
 
-    // Drop handler for dragging from toolbox
+    // Hydrate from URL
+    useEffect(() => {
+        if (Object.keys(recipes).length === 0) return; // Wait for recipes to load
+
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const plan = params.get('plan');
+            if (plan) {
+                const result = decompressPlan(plan);
+                if (result) {
+                    console.log('Hydrating plan from URL...');
+                    // Small timeout to ensure Flow is ready? or just import
+                    importNodes(result.nodes, result.edges, recipes);
+                }
+            }
+        }
+    }, [recipes, importNodes]);
+
+    // Drag handler for dragging from toolbox
     const onDragOver = useCallback((event: React.DragEvent) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
@@ -70,13 +108,38 @@ function FactoryPlannerInner() {
             y: event.clientY,
         });
 
+        // Check if dropped onto a group (simple hit test)
+        const parentGroup = nodes.find(n =>
+            n.type === 'group' &&
+            position.x >= n.position.x &&
+            position.x <= n.position.x + ((n.measured?.width ?? n.style?.width ?? 0) as number) &&
+            position.y >= n.position.y &&
+            position.y <= n.position.y + ((n.measured?.height ?? n.style?.height ?? 0) as number)
+        );
+
+        let finalPosition = position;
+        let parentId: string | undefined = undefined;
+
+        if (parentGroup) {
+            parentId = parentGroup.id;
+            finalPosition = {
+                x: position.x - parentGroup.position.x,
+                y: position.y - parentGroup.position.y
+            };
+        }
+
         const newNodeId = `${id}-${Date.now()}`;
+        const commonProps = {
+            id: newNodeId,
+            parentId,
+            extent: (parentId ? 'parent' : undefined) as 'parent' | undefined,
+            position: finalPosition,
+        };
 
         if (type === 'sourceNode') {
             addNode({
-                id: newNodeId,
+                ...commonProps,
                 type: 'sourceNode',
-                position,
                 data: {
                     resourceId: '',
                     efficiency: 100,
@@ -87,9 +150,8 @@ function FactoryPlannerInner() {
             }, recipes);
         } else if (type === 'resource') {
             addNode({
-                id: newNodeId,
+                ...commonProps,
                 type: 'productionNode',
-                position,
                 data: {
                     resourceId: id,
                     machineId: secondaryId,
@@ -99,11 +161,26 @@ function FactoryPlannerInner() {
                     outputRate: 60,
                 },
             }, recipes);
+        } else if (type === 'group') {
+            addNode({
+                ...commonProps,
+                type: 'group',
+                parentId: undefined, // Groups shouldn't be inside groups for now
+                position: position, // Always global
+                extent: undefined,
+                data: { label: 'New Group' },
+                style: { width: 400, height: 400, zIndex: -10 },
+            }, recipes);
+        } else if (type === 'note') {
+            addNode({
+                ...commonProps,
+                type: 'note',
+                data: { text: '' },
+            }, recipes);
         } else {
             addNode({
-                id: newNodeId,
+                ...commonProps,
                 type: 'productionNode',
-                position,
                 data: {
                     machineId: id,
                     efficiency: 100,
@@ -112,7 +189,61 @@ function FactoryPlannerInner() {
                 },
             }, recipes);
         }
-    }, [screenToFlowPosition, addNode, recipes]);
+    }, [screenToFlowPosition, addNode, recipes, nodes]);
+
+    // Undo/Redo Fix: Pause history during drag, resume on stop
+    const onNodeDragStart = useCallback(() => {
+        usePlannerStore.temporal.getState().pause();
+    }, []);
+
+    const onNodeDragStop = useCallback((event: React.MouseEvent, node: any) => {
+        usePlannerStore.temporal.getState().resume();
+
+        // Grouping Logic: Check overlapping groups
+        let globalNodeRect = {
+            x: node.position.x,
+            y: node.position.y,
+            w: (node.measured?.width ?? 0) as number,
+            h: (node.measured?.height ?? 0) as number
+        };
+
+        // If currently in a parent, convert to global
+        if (node.parentId) {
+            const parent = nodes.find(n => n.id === node.parentId);
+            if (parent) {
+                globalNodeRect.x += parent.position.x;
+                globalNodeRect.y += parent.position.y;
+            }
+        }
+
+        const center = {
+            x: globalNodeRect.x + globalNodeRect.w / 2,
+            y: globalNodeRect.y + globalNodeRect.h / 2
+        };
+
+        // 2. Find intersecting group
+        const group = nodes.find(n =>
+            n.id !== node.id && // Not self
+            n.type === 'group' &&
+            center.x >= n.position.x &&
+            center.x <= n.position.x + ((n.measured?.width ?? n.style?.width ?? 0) as number) &&
+            center.y >= n.position.y &&
+            center.y <= n.position.y + ((n.measured?.height ?? n.style?.height ?? 0) as number)
+        );
+
+        if (group) {
+            // Found a group!
+            if (node.parentId !== group.id) {
+                usePlannerStore.getState().assignParent(node.id, group.id);
+            }
+        } else {
+            // No group found. If it was in a group, unparent it.
+            if (node.parentId) {
+                usePlannerStore.getState().assignParent(node.id, undefined);
+            }
+        }
+
+    }, [nodes]);
 
     // Connection validation (Item ID matching)
     const isValidConnection = useCallback((connection: any) => {
@@ -140,6 +271,8 @@ function FactoryPlannerInner() {
                     onNodesChange={onNodesChangeWithRecipes}
                     onEdgesChange={onEdgesChangeWithRecipes}
                     onConnect={onConnectWithRecipes}
+                    onNodeDragStart={onNodeDragStart}
+                    onNodeDragStop={onNodeDragStop}
                     isValidConnection={isValidConnection}
                     nodeTypes={nodeTypes}
                     edgeTypes={edgeTypes}
@@ -179,6 +312,23 @@ function FactoryPlannerInner() {
                     </Panel>
 
                     <Panel position="top-right" className="bg-surface/80 backdrop-blur-md border border-border p-2 rounded-xl flex gap-2 shadow-2xl mr-4 mt-4">
+                        <button
+                            onClick={() => {
+                                const compressed = compressPlan(nodes, edges);
+                                const url = new URL(window.location.href);
+                                url.searchParams.set('plan', compressed);
+                                window.history.pushState({}, '', url.toString());
+                                navigator.clipboard.writeText(url.toString());
+                                alert('Link copied to clipboard!');
+                            }}
+                            title="Share Plan (Copy URL)"
+                            className="px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 text-[10px] font-bold uppercase tracking-wide rounded-lg border border-blue-500/20 transition-all flex items-center gap-1.5"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                            </svg>
+                            Share
+                        </button>
                         <input
                             ref={fileInputRef}
                             type="file"

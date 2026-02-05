@@ -1,8 +1,16 @@
 // ===== API Request Types =====
 
-export interface CalculateRequest {
+export interface Target {
     item: string;
     amount: number;
+}
+
+export interface CalculateRequest {
+    // New multi-target API
+    targets?: Target[];
+    // Legacy single-target (still supported)
+    item?: string;
+    amount?: number;
     optimization_strategy?: OptimizationStrategy;
     active_recipes?: Record<string, boolean>;
     weights?: StrategyWeights;
@@ -32,9 +40,11 @@ export interface SolverOptions {
 
 export interface CalculateResponse {
     production_graph: ProductionGraph;
-    target_item: string;
-    target_item_name: string;
-    amount_requested: number;
+    targets?: Target[];
+    // Legacy single-target fields (for backward compat)
+    target_item: string | null;
+    target_item_name: string | null;
+    amount_requested: number | null;
     optimization_strategy: string;
     summary: ProductionSummary;
     lp: boolean;
@@ -42,8 +52,9 @@ export interface CalculateResponse {
 
 export interface ProductionGraph {
     recipe_nodes: Record<string, RecipeNode>;
-    target_item: string;
-    target_amount: number;
+    targets?: Target[];
+    target_item: string | null;
+    target_amount: number | null;
     weights_used: StrategyWeights;
     strategy: string;
     proven_optimal: boolean;

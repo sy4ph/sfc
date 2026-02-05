@@ -9,7 +9,7 @@ interface SelectOption {
     description?: string;
 }
 
-interface SelectProps {
+export interface SelectProps {
     options: SelectOption[];
     value: string | null;
     onChange: (value: string) => void;
@@ -19,6 +19,7 @@ interface SelectProps {
     disabled?: boolean;
     error?: string;
     className?: string;
+    compact?: boolean;
 }
 
 export function Select({
@@ -31,6 +32,7 @@ export function Select({
     disabled = false,
     error,
     className = '',
+    compact = false,
 }: SelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -78,7 +80,7 @@ export function Select({
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled}
                 className={`
-          w-full px-4 py-2.5 
+          w-full ${compact ? 'px-2 py-1.5 text-sm' : 'px-4 py-2.5'} 
           bg-surface-high border border-border rounded-lg
           text-left flex items-center justify-between
           focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
@@ -88,11 +90,11 @@ export function Select({
           ${isOpen ? 'ring-2 ring-primary border-transparent' : ''}
         `}
             >
-                <span className={selectedOption ? 'text-text' : 'text-text-dim'}>
+                <span className={`${selectedOption ? 'text-text' : 'text-text-dim'} truncate`}>
                     {selectedOption?.label || placeholder}
                 </span>
                 <svg
-                    className={`w-5 h-5 text-text-dim transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 ml-1 text-text-dim flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -102,7 +104,7 @@ export function Select({
             </button>
 
             {isOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-surface border border-border rounded-lg shadow-xl overflow-hidden">
+                <div className="absolute z-50 min-w-[280px] w-max max-w-[400px] mt-1 bg-surface border border-border rounded-lg shadow-xl overflow-hidden">
                     {searchable && (
                         <div className="p-2 border-b border-border">
                             <input

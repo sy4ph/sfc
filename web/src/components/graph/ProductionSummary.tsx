@@ -7,8 +7,8 @@ import Image from 'next/image';
 
 interface ProductionSummaryProps {
     summary: SummaryType;
-    targetItemName: string;
-    amountRequested: number;
+    targetItemName: string | null;
+    amountRequested: number | null;
     strategy: string;
     provenOptimal: boolean;
 }
@@ -22,6 +22,11 @@ export function ProductionSummary({
 }: ProductionSummaryProps) {
     const { getItemName } = useItems();
 
+    // Format target display for single or multi-target
+    const targetDisplay = targetItemName && amountRequested
+        ? `${amountRequested}/min ${targetItemName}`
+        : 'Multi-target production';
+
     return (
         <div className="bg-surface/50 backdrop-blur-md border border-border rounded-xl p-5 space-y-6 shadow-xl animate-in fade-in slide-in-from-bottom-4">
             {/* Header */}
@@ -29,7 +34,7 @@ export function ProductionSummary({
                 <div>
                     <h3 className="text-lg font-bold text-text">Production Summary</h3>
                     <p className="text-sm text-text-dim mt-0.5">
-                        Total production for <span className="text-primary font-medium">{amountRequested}/min {targetItemName}</span>
+                        Total production for <span className="text-primary font-medium">{targetDisplay}</span>
                     </p>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">

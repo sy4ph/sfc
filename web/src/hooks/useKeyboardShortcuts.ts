@@ -7,6 +7,10 @@ interface ShortcutOptions {
     onSwitchTab?: (tabIndex?: number) => void;
     onClose?: () => void;
     onHelp?: () => void;
+    onUndo?: () => void;
+    onRedo?: () => void;
+    onCopy?: () => void;
+    onPaste?: () => void;
 }
 
 export function useKeyboardShortcuts({
@@ -14,6 +18,10 @@ export function useKeyboardShortcuts({
     onSwitchTab,
     onClose,
     onHelp,
+    onUndo,
+    onRedo,
+    onCopy,
+    onPaste,
 }: ShortcutOptions) {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -41,7 +49,6 @@ export function useKeyboardShortcuts({
                 }
             }
 
-            // Tab or Alt + [1,2] - Switch Tab
             if (
                 (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey) ||
                 (event.altKey && (event.key === '1' || event.key === '2'))
@@ -52,6 +59,39 @@ export function useKeyboardShortcuts({
                         onSwitchTab(parseInt(event.key) - 1);
                     } else {
                         onSwitchTab(); // Toggle
+                    }
+                }
+            }
+
+            // Ctrl + Z (Undo), Ctrl + Y or Ctrl + Shift + Z (Redo)
+            if (event.ctrlKey || event.metaKey) {
+                if (event.key.toLowerCase() === 'z' && !event.shiftKey) {
+                    if (onUndo) {
+                        event.preventDefault();
+                        onUndo();
+                    }
+                }
+                if (event.key.toLowerCase() === 'y' || (event.key.toLowerCase() === 'z' && event.shiftKey)) {
+                    if (onRedo) {
+                        event.preventDefault();
+                        onRedo();
+                    }
+                }
+                if (event.key.toLowerCase() === 'c' && !event.shiftKey) {
+                    // Check if text is selected to allow normal copying
+                    if (!window.getSelection()?.toString()) {
+                        if (onCopy) {
+                            event.preventDefault();
+                            onCopy();
+                        }
+                    }
+                }
+                if (event.key.toLowerCase() === 'v' && !event.shiftKey) {
+                    if (onPaste) {
+                        // Don't prevent default if focusing an input (handled at top of listener, but double check)
+                        // The top listener check handles INPUT/TEXTAREA tags, so we are safe to intercept here
+                        event.preventDefault();
+                        onPaste();
                     }
                 }
             }
